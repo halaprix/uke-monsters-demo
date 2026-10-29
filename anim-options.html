@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Animation options</title>
+<style>
+:root{--bg:#fffaf3;--card:#fff;--ink:#2b2340;--muted:#6b6478;--line:#d9d2e4;--acc:#7a3fd0;--accbg:#efe6fd}
+@media (prefers-color-scheme:dark){:root{--bg:#1d1a24;--card:#28242f;--ink:#f1edf7;--muted:#b3abc0;--line:#4a4356;--acc:#c9a8ff;--accbg:#3a2d55}}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,sans-serif}
+main{max-width:460px;margin:0 auto;padding:16px}
+h1{font-size:20px;font-weight:600;margin:0 0 8px}
+.seg{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 8px}
+button{font:inherit;font-size:14px;padding:8px 12px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer}
+.seg button.on{background:var(--accbg);color:var(--acc);border-color:var(--acc)}
+.ctl{display:flex;gap:8px;justify-content:center;margin:4px 0 12px}
+.card{border:1px solid var(--line);border-radius:14px;padding:12px 14px;background:var(--card)}
+.row{display:flex;justify-content:space-between;align-items:center;font-size:14px;color:var(--muted);margin-top:6px;gap:12px}
+.row span:last-child{text-align:right}
+.dots span{display:inline-block;width:10px;height:10px;border-radius:50%;margin-left:3px;background:var(--line)}
+.dots span.f{background:var(--acc)}
+.pill{font-size:12px;padding:2px 9px;border-radius:999px;background:var(--accbg);color:var(--acc);white-space:nowrap}
+p.hint{font-size:13px;color:var(--muted)}
+</style></head><body><main>
+<h1>How should the monsters move?</h1>
+<div class="seg" id="seg">
+<button data-m="now" class="on">Today</button><button data-m="puppet">Code puppet</button><button data-m="rive">Rive / Spine rig</button><button data-m="video">AI video</button>
+</div>
+<svg viewBox="0 0 380 270" width="100%" role="img" aria-label="Animated stand-in monster">
+<ellipse id="shadow" cx="190" cy="250" rx="58" ry="8" fill="#000" opacity=".14"/>
+<rect id="flat" x="112" y="22" width="156" height="232" rx="6" fill="none" stroke="#888780" stroke-width="1" stroke-dasharray="5 4" opacity="0"/>
+<g id="whole">
+ <g id="body">
+  <ellipse cx="165" cy="238" rx="18" ry="9" fill="#2a9e98"/><ellipse cx="215" cy="238" rx="18" ry="9" fill="#2a9e98"/>
+  <ellipse cx="190" cy="186" rx="58" ry="55" fill="#36bfb8"/>
+  <ellipse cx="190" cy="196" rx="34" ry="32" fill="#c4f1ea"/>
+  <g id="uke"><rect x="146" y="190" width="56" height="8" rx="3" fill="#b9773a"/><ellipse cx="214" cy="196" rx="26" ry="20" fill="#e3a25a"/><circle cx="214" cy="196" r="6" fill="#6b3f1c"/></g>
+ </g>
+ <g id="head">
+  <g id="earL"><ellipse cx="152" cy="64" rx="14" ry="30" fill="#36bfb8"/><ellipse cx="152" cy="68" rx="7" ry="18" fill="#f4a6c4"/></g>
+  <g id="earR"><ellipse cx="228" cy="64" rx="14" ry="30" fill="#36bfb8"/><ellipse cx="228" cy="68" rx="7" ry="18" fill="#f4a6c4"/></g>
+  <circle cx="190" cy="108" r="50" fill="#36bfb8"/>
+  <circle cx="178" cy="62" r="10" fill="#8e6fd8"/><circle cx="191" cy="57" r="11" fill="#8e6fd8"/><circle cx="203" cy="63" r="9" fill="#8e6fd8"/>
+  <g id="eyes"><ellipse cx="172" cy="105" rx="11" ry="13" fill="#fff"/><ellipse cx="208" cy="105" rx="11" ry="13" fill="#fff"/><circle cx="174" cy="107" r="6" fill="#2b2340"/><circle cx="210" cy="107" r="6" fill="#2b2340"/></g>
+  <path id="smile" d="M176 128 Q190 140 204 128" stroke="#2b2340" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <ellipse id="mouthO" cx="190" cy="133" rx="9" ry="8" fill="#7a2a45" opacity="0"/>
+ </g>
+ <g id="arm"><rect x="228" y="148" width="15" height="52" rx="7.5" fill="#2fb0aa"/></g>
+</g>
+</svg>
+<div class="ctl"><button id="strum">Kid strums</button><button id="parts">Show the parts</button></div>
+<div class="card">
+ <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span id="ttl" style="font-weight:600"></span><span class="pill" id="pill"></span></div>
+ <div id="line" style="font-size:14px;color:var(--muted);margin-top:4px"></div>
+ <div class="row"><span>Looks</span><span class="dots" id="dLook"></span></div>
+ <div class="row"><span>Effort</span><span id="eff"></span></div>
+ <div class="row"><span>Reacts to the kid</span><span id="react"></span></div>
+</div>
+<p class="hint">A simple stand-in monster, not the real art. It cheers by itself every few seconds; "Kid strums" makes it react now.</p>
+</main>
+<script>
+const $=i=>document.getElementById(i);
+const INFO={
+ now:{t:"Today: one picture per pose",l:"The whole picture wobbles as one sticker, and poses swap with a hard cut.",look:1,eff:"Done",r:"Yes, but stiff",p:"What we have"},
+ puppet:{t:"Puppet in code",l:"Parts move on their own: eyes blink, ears lag behind the head, the arm strums on the beat.",look:3,eff:"About 1 day, Claude can do it",r:"Yes",p:"Next step"},
+ rive:{t:"Rive or Spine rig",l:"Parts also bend: squash before a jump, stretch in the air, ears flop on landing.",look:5,eff:"Days per monster, animator",r:"Yes, via a state machine",p:"To ship"},
+ video:{t:"AI video clips",l:"Rich motion, but it plays like a movie: choppy frames, the character drifts, it can't respond.",look:4,eff:"Medium, local GPU",r:"No",p:"Trailer only"}};
+let mode="now",explode=false,cheer=-10,last=0,note=0;const t0=performance.now();
+function show(){const d=INFO[mode];$("ttl").textContent=d.t;$("line").textContent=d.l;$("pill").textContent=d.p;$("eff").textContent=d.eff;$("react").textContent=d.r;$("dLook").innerHTML=[1,2,3,4,5].map(i=>'<span class="'+(i<=d.look?'f':'')+'"></span>').join("")}
+document.querySelectorAll("#seg button").forEach(b=>b.onclick=()=>{document.querySelectorAll("#seg button").forEach(x=>x.classList.remove("on"));b.classList.add("on");mode=b.dataset.m;show()});
+$("strum").onclick=()=>{const s=(performance.now()-t0)/1000;if(mode==="video"){note=s;$("react").textContent="No: the clip just keeps playing";return}cheer=s;last=s};
+$("parts").onclick=()=>{explode=!explode;$("parts").textContent=explode?"Put it back together":"Show the parts"};
+const rnd=n=>{const x=Math.sin(n*12.9898)*43758.5453;return x-Math.floor(x)};
+const sc=(sx,sy,cx,cy)=>`translate(${cx*(1-sx)} ${cy*(1-sy)}) scale(${sx} ${sy})`;
+function frame(now){
+ let raw=(now-t0)/1000;if(raw-last>4){cheer=raw;last=raw}
+ if(mode==="video"&&note&&raw-note>2){note=0;show()}
+ let t=mode==="video"?Math.floor(raw*8)/8:raw;const ct=(mode==="video"?Math.floor((raw-cheer)*8)/8:raw-cheer);
+ const w=2*Math.PI/1.2,S=Math.sin;
+ let whole="",body="",head="",eL="rotate(-16 152 92)",eR="rotate(16 228 92)",eyes="",arm="rotate(0 235 152)",mo=0,hop=0;
+ const parts=mode!=="now"&&mode!=="video";
+ if(mode==="now"){
+  whole=`rotate(${4*S(w*t)} 190 245)`;
+  if(ct<0.55){hop=30*S(Math.PI*ct/0.55);whole=`translate(0 ${-hop}) `+whole;arm="rotate(-150 235 152)";mo=1}
+  else if(Math.floor(t/1.6)%2) arm="rotate(-35 235 152)";
+ } else {
+  const rich=mode!=="puppet";
+  const bs=1+0.02*S(w*t);body=sc(1,bs,190,240);
+  if(rich) body=`translate(190 240) skewX(${3*S(w*t)}) translate(-190 -240) `+body;
+  head=`translate(0 ${3*S(w*t-0.6)}) rotate(${3*S(w*t-0.9)} 190 150)`;
+  let ear=8*S(w*t-1.5);
+  if(ct<1.4){
+   if(rich){
+    let sx=1,sy=1;
+    if(ct<0.15){sy=1-0.15*ct/0.15;sx=1+0.12*ct/0.15}
+    else if(ct<0.65){hop=40*S(Math.PI*(ct-0.15)/0.5);sy=1.08;sx=0.95;mo=1}
+    else if(ct<0.85){const k=1-(ct-0.65)/0.2;sy=1-0.12*k;sx=1+0.1*k}
+    whole=`translate(0 ${-hop}) `+sc(sx,sy,190,245);
+    if(ct>0.65) ear+=22*Math.exp(-(ct-0.65)*5)*S((ct-0.65)*22);
+   } else if(ct<0.6){hop=28*S(Math.PI*ct/0.6);whole=`translate(0 ${-hop})`;mo=1}
+   else if(ct<1.2) ear+=14*Math.exp(-(ct-0.6)*6)*S((ct-0.6)*20);
+   arm=`rotate(${-150*Math.min(1,S(Math.PI*Math.min(ct,1.2)/1.2)*1.6)} 235 152)`;
+  } else arm=`rotate(${-12+14*S(2*w*t)} 235 152)`;
+  eL=`rotate(${-16+ear} 152 92)`;eR=`rotate(${16-ear} 228 92)`;
+  const blink=(t%2.8)<0.13?0.1:1;eyes=sc(1,blink,190,105);
+ }
+ if(mode==="video"){
+  const n=Math.floor(raw*8);
+  whole=`translate(${(rnd(n)-0.5)*4} ${(rnd(n+7)-0.5)*3}) `+whole;
+  head+=" "+sc(0.97+rnd(n+3)*0.06,0.97+rnd(n+5)*0.06,190,108);
+ }
+ if(explode&&parts){head="translate(0 -26) "+head;eL="translate(-14 -16) "+eL;eR="translate(14 -16) "+eR;eyes="translate(0 -8) "+eyes;arm="translate(40 -4) "+arm;$("uke").setAttribute("transform","translate(-18 24)")}
+ else $("uke").setAttribute("transform","");
+ $("flat").setAttribute("opacity",explode&&!parts?1:0);
+ $("whole").setAttribute("transform",whole);$("body").setAttribute("transform",body);$("head").setAttribute("transform",head);
+ $("earL").setAttribute("transform",eL);$("earR").setAttribute("transform",eR);$("eyes").setAttribute("transform",eyes);$("arm").setAttribute("transform",arm);
+ $("mouthO").setAttribute("opacity",mo);$("smile").setAttribute("opacity",1-mo);
+ const sh=Math.max(0.4,1-hop/70);$("shadow").setAttribute("rx",58*sh);$("shadow").setAttribute("opacity",0.14*sh);
+ requestAnimationFrame(frame)}
+show();requestAnimationFrame(frame);
+</script></body></html>

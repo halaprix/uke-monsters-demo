@@ -1,0 +1,16 @@
+{
+  "name": "Uke Monsters",
+  "short_name": "Uke Monsters",
+  "description": "Strum along with a friendly monster on your real ukulele.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "portrait",
+  "background_color": "#d9f3ff",
+  "theme_color": "#7fd3f5",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

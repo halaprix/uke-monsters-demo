@@ -1,0 +1,122 @@
+{
+ "monsters": [
+  {
+   "id": "bunny",
+   "name": "Melody",
+   "game": {
+    "chord": "Am",
+    "calls": [
+     "Sleepy Moon",
+     "Moon Bounce"
+    ],
+    "befriend_feel": "slow and gentle"
+   },
+   "face": [
+    0.49,
+    0.44
+   ],
+   "poses": {
+    "idle": "monsters/bunny/idle.webp",
+    "play": "monsters/bunny/play.webp",
+    "listen": "monsters/bunny/listen.webp",
+    "cheer": "monsters/bunny/cheer.webp",
+    "tryagain": "monsters/bunny/tryagain.webp",
+    "goodbye": "monsters/bunny/goodbye.webp"
+   }
+  },
+  {
+   "id": "drummer",
+   "name": "Boomer",
+   "game": {
+    "chord": "C",
+    "calls": [
+     "Two Hops",
+     "Big Finish"
+    ],
+    "befriend_feel": "rhythm first"
+   },
+   "face": [
+    0.47,
+    0.44
+   ],
+   "poses": {
+    "idle": "monsters/drummer/idle.webp",
+    "play": "monsters/drummer/play.webp",
+    "listen": "monsters/drummer/listen.webp",
+    "cheer": "monsters/drummer/cheer.webp",
+    "tryagain": "monsters/drummer/tryagain.webp",
+    "goodbye": "monsters/drummer/goodbye.webp"
+   }
+  },
+  {
+   "id": "bassist",
+   "name": "Luna",
+   "game": {
+    "chord": "G",
+    "calls": [
+     "Rock Out!"
+    ],
+    "befriend_feel": "steady and cool"
+   },
+   "face": [
+    0.4,
+    0.4
+   ],
+   "poses": {
+    "idle": "monsters/bassist/idle.webp",
+    "play": "monsters/bassist/play.webp",
+    "listen": "monsters/bassist/listen.webp",
+    "cheer": "monsters/bassist/cheer.webp",
+    "tryagain": "monsters/bassist/tryagain.webp",
+    "goodbye": "monsters/bassist/goodbye.webp"
+   }
+  },
+  {
+   "id": "cloudsheep",
+   "name": "Puff",
+   "game": {
+    "chord": "F",
+    "calls": [
+     "Pony Gallop",
+     "Double Pony"
+    ],
+    "befriend_feel": "soft and floaty"
+   },
+   "face": [
+    0.49,
+    0.42
+   ],
+   "poses": {
+    "idle": "monsters/cloudsheep/idle.webp",
+    "play": "monsters/cloudsheep/play.webp",
+    "listen": "monsters/cloudsheep/listen.webp",
+    "cheer": "monsters/cloudsheep/cheer.webp",
+    "tryagain": "monsters/cloudsheep/tryagain.webp",
+    "goodbye": "monsters/cloudsheep/goodbye.webp"
+   }
+  },
+  {
+   "id": "bumble",
+   "name": "Buzzy",
+   "game": {
+    "chord": "C",
+    "calls": [
+     "Hello Strum"
+    ],
+    "befriend_feel": "quick and bright"
+   },
+   "face": [
+    0.59,
+    0.44
+   ],
+   "poses": {
+    "idle": "monsters/bumble/idle.webp",
+    "play": "monsters/bumble/play.webp",
+    "listen": "monsters/bumble/listen.webp",
+    "cheer": "monsters/bumble/cheer.webp",
+    "tryagain": "monsters/bumble/tryagain.webp",
+    "goodbye": "monsters/bumble/goodbye.webp"
+   }
+  }
+ ]
+}

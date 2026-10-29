@@ -1,0 +1,936 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#7fd3f5">
+<title>Uke Monsters Demo</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --sky-top: #7fd3f5; --sky-bottom: #d9f3ff;
+    --wood: #c98a52; --wood-dark: #9c6436; --floor: #e7b57c; --floor-dark: #d29a5c;
+    --turq: #3fd6cf; --coral: #ff8a7a; --pink: #ff8fc8; --lav: #b79cff; --sun: #ffd23f; --ink: #3b2a55;
+    --cream: #fff7e6;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--sky-bottom); font-family: "Baloo 2", "Nunito", system-ui, sans-serif; color: var(--ink); user-select: none; -webkit-user-select: none; touch-action: manipulation; }
+  .stage { position: fixed; inset: 0; overflow: hidden; background: linear-gradient(var(--sky-top), var(--sky-bottom) 70%); }
+
+  /* calm background: trees, canopy, bunting, floor */
+  .trees { position: absolute; left: -10%; right: -10%; bottom: 20dvh; height: 34dvh; filter: blur(6px); opacity: .85;
+    background:
+      radial-gradient(circle at 8% 70%, #8fd49a 0 18%, transparent 19%),
+      radial-gradient(circle at 25% 55%, #a6e0a4 0 20%, transparent 21%),
+      radial-gradient(circle at 48% 75%, #8fd49a 0 16%, transparent 17%),
+      radial-gradient(circle at 70% 55%, #a6e0a4 0 21%, transparent 22%),
+      radial-gradient(circle at 92% 70%, #8fd49a 0 19%, transparent 20%); }
+  .cloud { position: absolute; width: 120px; height: 40px; border-radius: 40px; background: #fff; opacity: .9; filter: blur(1px); }
+  .cloud::before, .cloud::after { content: ""; position: absolute; background: #fff; border-radius: 50%; }
+  .cloud::before { width: 56px; height: 56px; left: 18px; top: -26px; }
+  .cloud::after { width: 44px; height: 44px; left: 60px; top: -18px; }
+  .beam-top { position: absolute; left: 0; right: 0; top: 0; height: 5dvh; background: linear-gradient(var(--wood), var(--wood-dark)); box-shadow: 0 4px 10px rgba(0,0,0,.12); }
+  .post { position: absolute; top: 0; bottom: 18dvh; width: 5vw; max-width: 34px; background: linear-gradient(90deg, var(--wood-dark), var(--wood) 40%, var(--wood-dark)); }
+  .post.l { left: 3vw; } .post.r { right: 3vw; }
+  .bunting { position: absolute; left: 0; right: 0; top: 5dvh; height: 9dvh; }
+  .spot { position: absolute; top: 4dvh; width: 46vw; height: 70dvh; background: linear-gradient(rgba(255,236,160,.55), rgba(255,236,160,0)); clip-path: polygon(45% 0, 55% 0, 100% 100%, 0 100%); pointer-events: none; animation: spot 6s ease-in-out infinite alternate; }
+  .spot.l { left: 0; transform-origin: 50% 0; transform: rotate(-14deg); }
+  .spot.r { right: 0; transform-origin: 50% 0; transform: rotate(14deg); animation-delay: -3s; }
+  @keyframes spot { from { opacity: .55; } to { opacity: .9; } }
+  .floor { position: absolute; left: 0; right: 0; bottom: 0; height: 20dvh;
+    background: repeating-linear-gradient(90deg, var(--floor) 0 14vw, var(--floor-dark) 14vw calc(14vw + 3px)); box-shadow: inset 0 10px 18px rgba(120,70,20,.25); }
+  .floor::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 8px; background: var(--wood-dark); opacity: .5; }
+
+  /* monster: sized by height so every pose sprite stands the same size on the floor */
+  .mon-wrap { position: absolute; left: 50%; bottom: 9dvh; height: min(52dvh, 100vw); transform: translateX(-50%); }
+  .shadow { position: absolute; left: 12%; right: 12%; bottom: -1.5%; height: 7%; border-radius: 50%; background: rgba(90,50,20,.28); filter: blur(4px); transition: transform .2s; }
+  .mon { position: relative; height: 100%; transform-origin: 50% 100%; }
+  .mon img { display: block; height: 100%; width: auto; max-width: 96vw; object-fit: contain; object-position: bottom; pointer-events: none; -webkit-user-drag: none; }
+  .mon .rig { display: none; position: absolute; inset: 0; width: 100%; height: 100%; }
+  .mon.rigged .rig { display: block; }
+  .mon.rigged img { visibility: hidden; }              /* keeps the sprite's size, the rig draws over it */
+  .mon.rigged { animation: none !important; }          /* the rig animates itself */
+  .mon.idle, .mon.tryagain, .mon.goodbye { animation: breathe 2.4s ease-in-out infinite; }
+  .mon.play   { animation: sway var(--beat, .6s) ease-in-out infinite alternate; }
+  .mon.listen { animation: lean 1.8s ease-in-out infinite; }
+  .mon.cheer  { animation: hop .55s cubic-bezier(.3,.7,.4,1) 2; }
+  .mon.party  { animation: party 1.2s ease-in-out 3; }
+  .mon.bump   { animation: bump .22s ease-out; }
+  @keyframes breathe { 0%,100% { transform: scale(1,1); } 50% { transform: scale(1.015,.985); } }
+  @keyframes sway { from { transform: rotate(-4deg) translateY(0); } to { transform: rotate(4deg) translateY(-2%); } }
+  @keyframes lean { 0%,100% { transform: rotate(2deg) scale(1.01); } 50% { transform: rotate(4deg) translateX(1.5%) scale(1.03); } }
+  @keyframes hop {
+    0% { transform: scale(1.08,.9); }
+    35% { transform: translateY(-22%) scale(.94,1.08); }
+    70% { transform: translateY(0) scale(1.1,.88); }
+    100% { transform: scale(1,1); } }
+  @keyframes party {
+    0% { transform: rotate(0) scale(1); }
+    25% { transform: translateY(-14%) rotate(-10deg) scale(1.05); }
+    50% { transform: translateY(0) rotate(0) scale(1.08,.94); }
+    75% { transform: translateY(-14%) rotate(10deg) scale(1.05); }
+    100% { transform: rotate(0) scale(1); } }
+  @keyframes bump { 0% { transform: scale(1,1); } 40% { transform: scale(1.05,.95); } 100% { transform: scale(1,1); } }
+
+  /* listening cue next to the head */
+  .ear { position: absolute; right: -6%; top: 4%; width: 22%; aspect-ratio: 1; border-radius: 50%; display: grid; place-items: center; font-size: min(9vw, 6dvh);
+    background: rgba(255,255,255,.85); box-shadow: 0 6px 18px rgba(59,42,85,.18); opacity: 0; transform: scale(.4); transition: .3s; }
+  .ear::after { content: ""; position: absolute; inset: -6px; border-radius: 50%; border: 4px solid var(--sun); opacity: 0; }
+  .listening .ear { opacity: 1; transform: scale(1); }
+  .listening .ear::after { animation: ping 1.2s ease-out infinite; }
+  @keyframes ping { from { transform: scale(.9); opacity: .9; } to { transform: scale(1.5); opacity: 0; } }
+
+  /* HUD */
+  .hud { position: absolute; left: 0; right: 0; top: calc(env(safe-area-inset-top) + 6dvh); display: flex; flex-direction: column; align-items: center; gap: 1.2dvh; pointer-events: none; }
+  .groove { display: flex; gap: 2vw; padding: 1dvh 3vw; border-radius: 999px; background: rgba(255,255,255,.75); box-shadow: 0 4px 14px rgba(59,42,85,.12); }
+  .groove span { font-size: min(7vw, 4.4dvh); filter: grayscale(1) opacity(.35); transition: filter .4s, transform .4s; }
+  .groove span.on { filter: none; transform: scale(1.15); animation: pop .5s; }
+  @keyframes pop { 0% { transform: scale(.4); } 60% { transform: scale(1.5); } 100% { transform: scale(1.15); } }
+  .bubble { min-height: 7dvh; max-width: 92vw; white-space: nowrap; padding: 1dvh 5vw; border-radius: 26px; background: var(--cream); box-shadow: 0 6px 18px rgba(59,42,85,.16);
+    font-size: min(6.4vw, 4.2dvh); font-weight: 800; display: flex; align-items: center; gap: 2vw; transition: transform .25s; }
+  .bubble.bounce { animation: pop .45s; }
+  .callname { font-size: min(4.2vw, 2.6dvh); font-weight: 700; color: #6b4a2a; background: rgba(255,255,255,.7); padding: .1em .9em; border-radius: 999px; min-height: 1.6em; }
+  .callname:empty { visibility: hidden; }
+  .chord { display: inline-grid; place-items: center; min-width: 2.2em; height: 1.6em; padding: 0 .3em; border-radius: 12px; color: #fff; text-shadow: 0 2px 0 rgba(0,0,0,.18); }
+  .row { display: flex; align-items: center; gap: 4vw; }
+  /* rhythm dots: "ta" = big, "ti" (half beat) = small; spacing follows the rhythm */
+  .dots { position: relative; height: min(10vw, 6dvh); }
+  .dots i { position: absolute; top: 50%; width: min(9vw, 5.5dvh); aspect-ratio: 1; border-radius: 50%; transform: translate(-50%, -50%); border: 5px solid rgba(59,42,85,.35); background: rgba(255,255,255,.6); transition: background .15s, transform .15s, border-color .15s; }
+  .dots i.ti { width: min(6.5vw, 4dvh); border-width: 4px; }
+  .dots i.on { background: var(--sun); border-color: #f0a500; transform: translate(-50%, -50%) scale(1.15); }
+  .dots i.you { background: var(--pink); border-color: #e0559a; transform: translate(-50%, -50%) scale(1.15); }
+  .diagram { width: min(15vw, 9dvh); filter: drop-shadow(0 4px 8px rgba(59,42,85,.18)); }
+  .diagram:empty { display: none; }
+
+  /* particles */
+  .fx { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+  .p { position: absolute; font-size: 8vw; will-change: transform, opacity; animation: fly var(--d, 1s) ease-out forwards; }
+  @keyframes fly { from { transform: translate(0,0) scale(.4) rotate(0); opacity: 1; } to { transform: translate(var(--x), var(--y)) scale(var(--s,1)) rotate(var(--r)); opacity: 0; } }
+  .note { position: absolute; font-size: 7vw; color: var(--ink); animation: noteUp 1.4s ease-out forwards; }
+  @keyframes noteUp { from { transform: translate(0,0) rotate(-10deg); opacity: 1; } to { transform: translate(var(--x), -22dvh) rotate(15deg); opacity: 0; } }
+
+  /* corner controls */
+  .mic { position: absolute; right: 4vw; bottom: calc(env(safe-area-inset-bottom) + 3dvh); width: 13vw; max-width: 64px; aspect-ratio: 1; border-radius: 50%; background: rgba(255,255,255,.85);
+    display: grid; place-items: center; font-size: min(6vw, 30px); box-shadow: 0 0 0 calc(var(--lvl, 0) * 18px) rgba(255,143,200,.45); transition: box-shadow .06s; }
+  .mic.off { opacity: .55; }
+  .hint { position: absolute; left: 4vw; bottom: calc(env(safe-area-inset-bottom) + 3.5dvh); font-weight: 800; font-size: min(4.2vw, 2.6dvh); color: #6b4a2a; background: rgba(255,255,255,.7); padding: .4em .8em; border-radius: 999px; }
+  .hint:empty { display: none; }
+  .gear { position: absolute; left: 3vw; top: calc(env(safe-area-inset-top) + 6.2dvh); width: 11vw; max-width: 52px; aspect-ratio: 1; border-radius: 50%; border: 0; background: rgba(255,255,255,.6);
+    font-size: min(5.5vw, 26px); display: grid; place-items: center; z-index: 12; opacity: .7;
+    background-image: conic-gradient(var(--pink) calc(var(--hold, 0) * 1turn), transparent 0); }
+  .gear span { width: 82%; aspect-ratio: 1; border-radius: 50%; background: rgba(255,255,255,.95); display: grid; place-items: center; pointer-events: none; }
+
+  /* start / end overlay */
+  .overlay { position: absolute; inset: 0; display: grid; place-items: safe center; overflow-y: auto; background: rgba(127,211,245,.55); backdrop-filter: blur(3px); z-index: 10; }
+  .overlay.hide { display: none; }
+  .card { text-align: center; padding: 4dvh 6vw; max-width: 560px; }
+  .card h1 { margin: 0 0 1dvh; font-size: min(11vw, 7dvh); line-height: 1.1; color: #fff; text-shadow: 0 4px 0 #e0559a, 0 8px 18px rgba(59,42,85,.3); letter-spacing: .02em; }
+  .card p { margin: 0 0 3dvh; font-size: min(5vw, 3dvh); font-weight: 700; color: var(--ink); }
+  .go { font: inherit; font-size: min(9vw, 6dvh); font-weight: 800; color: #fff; border: 0; border-radius: 999px; padding: 1.6dvh 12vw; background: linear-gradient(#ff8fc8, #e0559a); box-shadow: 0 8px 0 #b83f7c, 0 14px 26px rgba(59,42,85,.3); cursor: pointer; animation: breathe 1.6s ease-in-out infinite; }
+  .go:active { transform: translateY(6px); box-shadow: 0 2px 0 #b83f7c; }
+  .meet { margin-top: 2.6dvh; }
+  .meet.hide { display: none; }
+  .meet h3 { margin: 0 0 1.2dvh; font-size: min(5vw, 3dvh); color: #fff; text-shadow: 0 2px 0 #e0559a, 0 4px 10px rgba(59,42,85,.3); }
+  .mrow { display: flex; flex-wrap: wrap; justify-content: center; gap: 2vw; }
+  .mbtn { position: relative; width: min(14.5vw, 9.5dvh); border: 0; background: none; padding: 0; font: inherit; color: var(--ink); cursor: pointer; }
+  .mface { display: block; width: 100%; aspect-ratio: 1; border-radius: 50%; overflow: hidden; background: #fff; border: 4px solid rgba(255,255,255,.9); box-shadow: 0 4px 12px rgba(59,42,85,.2); }
+  .mbtn.friend .mface { border-color: var(--sun); }
+  .mface { background-repeat: no-repeat; }
+  .mstar { position: absolute; right: -6%; top: -6%; font-size: min(5vw, 3dvh); }
+  .mbtn small { display: block; margin-top: .4dvh; font-weight: 800; font-size: min(3.6vw, 2.2dvh); }
+  .mbtn:active .mface { transform: scale(.94); }
+  .small { margin-top: 3dvh; font-size: min(3.6vw, 2.1dvh) !important; opacity: .8; }
+
+  /* grown-up panel */
+  .panel { position: absolute; inset: 0; z-index: 20; background: rgba(59,42,85,.45); display: grid; place-items: safe center; overflow-y: auto; }
+  .panel.hide { display: none; }
+  .sheet { width: min(94vw, 520px); margin: 3dvh 0; background: var(--cream); border-radius: 24px; padding: 20px 20px 16px; box-shadow: 0 18px 40px rgba(0,0,0,.25); font-size: 16px; }
+  .sheet h2 { margin: 0 0 4px; font-size: 22px; }
+  .sheet .sub { margin: 0 0 14px; font-size: 13px; opacity: .75; }
+  .sheet label.opt { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid rgba(59,42,85,.1); font-weight: 700; }
+  .sheet label.opt small { display: block; font-weight: 500; font-size: 12px; opacity: .7; }
+  .sheet select, .sheet input[type=checkbox] { font: inherit; font-size: 15px; }
+  .sheet select { padding: 4px 8px; border-radius: 10px; border: 2px solid rgba(59,42,85,.2); background: #fff; max-width: 52%; }
+  .sheet input[type=checkbox] { width: 22px; height: 22px; accent-color: #e0559a; }
+  .meter { height: 10px; border-radius: 6px; background: rgba(59,42,85,.12); overflow: hidden; margin-top: 6px; }
+  .meter b { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #3fd6cf, #ff8fc8); transition: width .06s; }
+  .micinfo { font-size: 12px; opacity: .75; margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .triglog { white-space: pre-line; font-weight: 500; opacity: .85; }
+  .log { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 6px; }
+  .log td, .log th { text-align: left; padding: 4px 6px; border-top: 1px solid rgba(59,42,85,.1); }
+  .log:empty { display: none; }
+  .close { margin-top: 14px; width: 100%; font: inherit; font-size: 18px; font-weight: 800; color: #fff; background: #e0559a; border: 0; border-radius: 999px; padding: 10px; }
+  .heard { position: absolute; right: 4vw; top: calc(env(safe-area-inset-top) + 6.4dvh); z-index: 11; font-size: 13px; font-weight: 700; background: rgba(255,255,255,.85); border-radius: 10px; padding: 4px 8px; }
+  .heard:empty { display: none; }
+
+  /* tuning step */
+  .go.alt { display: block; margin: 2.2dvh auto 0; font-size: min(5.6vw, 3.6dvh); padding: 1.1dvh 8vw; background: linear-gradient(#5fe0d8, #2fbdb6); box-shadow: 0 6px 0 #1f8f8a, 0 10px 20px rgba(59,42,85,.25); animation: none; }
+  .go.alt:active { box-shadow: 0 2px 0 #1f8f8a; }
+  .go.hide { display: none; }
+  .tuning .groove, .tuning .callname, .tuning .row, .tuning .hint { display: none; }
+  .tuner { position: absolute; left: 0; right: 0; top: calc(env(safe-area-inset-top) + 15dvh); z-index: 9; display: flex; flex-direction: column; align-items: center; gap: 1.4dvh; padding: 0 4vw; }
+  .tuner.hide { display: none; }
+  .tstrings { display: flex; gap: 3vw; }
+  .tstr { width: min(17vw, 10dvh); aspect-ratio: 1; border-radius: 50%; border: 5px solid rgba(59,42,85,.25); background: rgba(255,255,255,.9); font: inherit; color: var(--ink);
+    display: grid; place-items: center; align-content: center; line-height: 1; box-shadow: 0 4px 12px rgba(59,42,85,.15); transition: transform .15s, border-color .15s, background .15s; }
+  .tstr b { font-size: min(8vw, 5dvh); font-weight: 800; }
+  .tstr small { font-size: min(3.6vw, 2.2dvh); }
+  .tstr.hot { transform: scale(1.12); border-color: var(--sun); }
+  .tstr.lock { border-color: #e0559a; }
+  .tstr.ok { background: #e5f9f3; border-color: #2fbdb6; }
+  .tmeter { position: relative; width: min(86vw, 460px); height: min(9vw, 5dvh); border-radius: 999px; background: linear-gradient(90deg, #ffd9cf, #fff4d6 42%, #c9f2df 46%, #c9f2df 54%, #fff4d6 58%, #ffd9cf); box-shadow: inset 0 2px 6px rgba(59,42,85,.15); }
+  .tmeter::after { content: ""; position: absolute; left: 50%; top: 12%; bottom: 12%; width: 3px; transform: translateX(-50%); background: rgba(47,189,182,.7); border-radius: 2px; }
+  .tneedle { position: absolute; top: -18%; bottom: -18%; width: min(5vw, 3dvh); transform: translateX(-50%); border-radius: 999px; background: #e0559a; border: 3px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,.25); transition: left .12s, background .15s; z-index: 1; }
+  .tneedle.good { background: #2fbdb6; }
+  .tends { display: flex; justify-content: space-between; width: min(86vw, 460px); font-size: min(3.6vw, 2.2dvh); font-weight: 700; color: #6b4a2a; margin-top: -0.6dvh; }
+  .tmsg { min-height: 2.6em; max-width: 92vw; text-align: center; font-weight: 700; font-size: min(4.4vw, 2.7dvh); background: rgba(255,255,255,.8); padding: .4em .9em; border-radius: 16px; }
+  .tclose { position: absolute; right: 3vw; top: calc(env(safe-area-inset-top) + 6.2dvh); z-index: 12; width: 11vw; max-width: 52px; aspect-ratio: 1; border-radius: 50%; border: 0; background: rgba(255,255,255,.85); font-size: min(5vw, 24px); }
+  .tuner.hide ~ .tclose, .stage:not(.tuning) .tclose { display: none; }
+</style>
+</head>
+<body>
+<div class="stage" id="stage">
+  <div class="cloud" style="left:12vw;top:20dvh"></div>
+  <div class="cloud" style="left:66vw;top:26dvh;transform:scale(.8)"></div>
+  <div class="trees"></div>
+  <div class="spot l"></div><div class="spot r"></div>
+  <div class="post l"></div><div class="post r"></div>
+  <div class="beam-top"></div>
+  <svg class="bunting" viewBox="0 0 400 60" preserveAspectRatio="none" aria-hidden="true">
+    <path d="M0 6 Q200 30 400 6" fill="none" stroke="#7a5230" stroke-width="2"/>
+    <g id="flags"></g>
+  </svg>
+  <div class="floor"></div>
+
+  <div class="mon-wrap" id="monWrap">
+    <div class="shadow"></div>
+    <div class="mon idle" id="mon"><img id="monImg" src="expressions/idle.webp" onerror="this.onerror=null;this.src='monster.webp'" alt="Uke monster"></div>
+    <div class="ear">👂</div>
+  </div>
+
+  <div class="hud">
+    <div class="groove" id="groove"></div>
+    <div class="bubble" id="bubble">🎸</div>
+    <div class="callname" id="callname"></div>
+    <div class="row"><div class="diagram" id="diagram"></div><div class="dots" id="dots"></div></div>
+  </div>
+  <div class="fx" id="fx"></div>
+  <div class="hint" id="hint"></div>
+  <div class="heard" id="heard"></div>
+  <div class="mic off" id="mic">🎤</div>
+  <button class="gear" id="gear" aria-label="Grown-ups: press and hold"><span>⚙️</span></button>
+
+  <div class="tuner hide" id="tuner">
+    <div class="tstrings" id="tStrings"></div>
+    <div class="tmeter"><div class="tneedle" id="tNeedle"></div></div>
+    <div class="tends"><span>🐢 too low</span><span>just right</span><span>too high 🐇</span></div>
+    <div class="tmsg" id="tMsg"></div>
+    <button class="go hide" id="tFinish">▶ Let’s play!</button>
+  </div>
+  <button class="tclose" id="tClose" aria-label="Close tuning">✕</button>
+
+  <div class="overlay" id="start">
+    <div class="card">
+      <h1 id="startTitle">Uke Monsters</h1>
+      <p id="startText">Listen to the monster, then strum back!</p>
+      <button class="go" id="goBtn">▶ Play</button>
+      <button class="go alt" id="tuneBtn">🎵 Tune my uke</button>
+      <div class="meet hide" id="meet">
+        <h3>Meet a monster</h3>
+        <div class="mrow" id="meetRow"></div>
+      </div>
+      <p class="small">Grown-up: allow the microphone. Sound is checked on this phone and never recorded or sent.<br>No mic? Tapping the screen counts as a strum. Hold ⚙️ for settings.</p>
+    </div>
+  </div>
+
+  <div class="panel hide" id="panel">
+    <div class="sheet">
+      <h2>For grown-ups</h2>
+      <p class="sub">Settings stay on this phone.</p>
+      <label class="opt">Calls per session <select id="optLen"><option value="3">3 (short)</option><option value="5">5</option><option value="8">8 (long)</option></select></label>
+      <label class="opt"><span>Mic sensitivity<small>Raise it if strums are missed, lower it if talking counts as a strum.</small></span>
+        <select id="optSens"><option value="low">Low</option><option value="mid">Normal</option><option value="high">High</option></select></label>
+      <div class="meter"><b id="meter"></b></div>
+      <div class="micinfo" id="micInfo">Microphone not started yet: press Play first.</div>
+      <label class="opt" style="display:block"><span>What counted as a strum (newest first)</span>
+        <div class="micinfo triglog" id="trigLog">Nothing has counted as a strum yet.</div></label>
+      <label class="opt"><span>Chord checking (experiment)<small>The monster still cheers every try. It corrects gently at most once per session.</small></span>
+        <select id="optCheck"><option value="off">Off</option><option value="grownup">Show to grown-up only</option><option value="monster">Monster reacts</option></select></label>
+      <label class="opt"><span>Show chord diagrams</span><input type="checkbox" id="optDiag"></label>
+      <label class="opt"><span>Tapping counts as a strum<small>Without a microphone it always does. With one, only if this is on.</small></span><input type="checkbox" id="optTap"></label>
+      <label class="opt"><span>Ukulele tuning<small>High-G is what most shop ukuleles come with.</small></span>
+        <select id="optTuning"><option value="standard">High-G (G C E A)</option><option value="lowg">Low-G</option></select></label>
+      <label class="opt" style="display:block"><span>Last session</span>
+        <table class="log" id="log"></table>
+      </label>
+      <button class="close" id="closePanel">Done</button>
+    </div>
+  </div>
+</div>
+
+<script src="grader.js" onerror="window.UkeGrader = null"></script>
+<script>
+const $ = id => document.getElementById(id);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+// ---- settings (per phone; storage may be blocked, so every access is guarded) ----
+const DEFAULTS = { len: 5, sens: 'mid', check: 'off', diag: true, tapWithMic: false, tuning: 'standard' };
+let settings = { ...DEFAULTS };
+try { Object.assign(settings, JSON.parse(localStorage.getItem('ukeSettings') || '{}')); } catch (e) {}
+function saveSettings() { try { localStorage.setItem('ukeSettings', JSON.stringify(settings)); } catch (e) {} }
+
+// ---- background bunting ----
+(() => {
+  const cols = ['#ff8fc8', '#ffd23f', '#3fd6cf', '#ff8a7a', '#b79cff'];
+  let g = '';
+  for (let i = 0; i < 12; i++) {
+    const x = 8 + i * 33, y = 6 + 24 * Math.sin(Math.PI * (x / 400)) * 0.9;
+    g += `<path d="M${x} ${y} L${x + 26} ${y} L${x + 13} ${y + 30} Z" fill="${cols[i % 5]}"/>` +
+         `<text x="${x + 13}" y="${y + 15}" font-size="11" text-anchor="middle" fill="#fff8">★</text>`;
+  }
+  $('flags').innerHTML = g;
+})();
+
+// ---- sprites: one pose per game moment in expressions/ (character/expressions/ holds the originals) ----
+const SPRITES = {};
+for (const k of ['idle', 'play', 'listen', 'cheer', 'tryagain', 'goodbye', 'tune']) {
+  const im = new Image();
+  im.onload = () => { SPRITES[k] = im.src; };
+  im.src = `expressions/${k}.webp`;
+}
+let mood = 'idle';
+function setMood(m) {
+  mood = m;
+  const mon = $('mon');
+  mon.className = 'mon';
+  void mon.offsetWidth;            // restart the CSS animation
+  mon.classList.add(m);
+  const key = m === 'party' ? 'cheer' : m;
+  // the monster on stage: a wild one from the roster, else the main bandmate (who also has the tuning pose)
+  $('monImg').src = (active && active.sprites[key]) || SPRITES[key] || 'monster.webp';
+  $('stage').classList.toggle('listening', m === 'listen');
+  rigMood();
+}
+
+// ---- Rive rig for the main monster (optional): rive/main.riv, state machine "Monster" with a number
+// input "mood" (index in RIG_MOODS) and a trigger "strum". Without the file the sprites above are used. ----
+const RIG_MOODS = ['idle', 'play', 'listen', 'cheer', 'tryagain', 'goodbye', 'tune', 'party'];
+const rig = { live: null, mood: null, strum: null };
+function rigMood() {
+  const on = !!(rig.live && !active);   // wild monsters stay sprites until they get rigs too
+  $('mon').classList.toggle('rigged', on);
+  if (on && rig.mood) rig.mood.value = RIG_MOODS.indexOf(mood);
+}
+function rigStrum() { if (rig.live && !active && rig.strum) rig.strum.fire(); }
+async function loadRig() {
+  try {
+    if (!(await fetch('rive/main.riv', { method: 'HEAD', cache: 'no-cache' })).ok) return;
+    await new Promise((ok, fail) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/@rive-app/canvas@2.44.2/rive.js';
+      s.onload = ok; s.onerror = fail; document.head.appendChild(s);
+    });
+    const canvas = document.createElement('canvas');
+    canvas.className = 'rig';
+    $('mon').appendChild(canvas);
+    const r = new rive.Rive({
+      src: 'rive/main.riv', canvas, stateMachines: 'Monster', autoplay: true,
+      layout: new rive.Layout({ fit: rive.Fit.Contain, alignment: rive.Alignment.BottomCenter }),
+      onLoad: () => {
+        r.resizeDrawingSurfaceToCanvas();
+        const inputs = r.stateMachineInputs('Monster') || [];
+        rig.mood = inputs.find(i => i.name === 'mood');
+        rig.strum = inputs.find(i => i.name === 'strum');
+        rig.live = r;
+        rigMood();
+      },
+    });
+    addEventListener('resize', () => r.resizeDrawingSurfaceToCanvas());
+  } catch (e) { rig.live = null; }      // offline or no rig: keep the sprites
+}
+loadRig();
+
+// ---- wild monsters made by tools/monster-factory: monsters/roster.json + monsters/<id>/<pose>.webp ----
+let roster = [], active = null;
+let band = [];
+try { band = JSON.parse(localStorage.getItem('ukeBand') || '[]'); } catch (e) {}
+function saveBand() { try { localStorage.setItem('ukeBand', JSON.stringify(band)); } catch (e) {} }
+async function loadRoster() {
+  try {
+    const r = await fetch('monsters/roster.json', { cache: 'no-cache' });
+    if (!r.ok) return;
+    roster = (await r.json()).monsters.filter(m => !m.id.startsWith('_') && m.poses && m.poses.idle);
+  } catch (e) { roster = []; }
+  for (const m of roster) {
+    m.sprites = {};
+    for (const [pose, src] of Object.entries(m.poses)) {
+      const im = new Image();
+      im.onload = () => { m.sprites[pose] = im.src; if (pose === 'idle') { m.aspect = im.naturalWidth / im.naturalHeight; drawMeetRow(); } };
+      im.src = src;
+    }
+  }
+  drawMeetRow();
+}
+// round portrait: the idle sprite zoomed so its face (roster "face" = centre as fractions) sits in the middle
+const PORTRAIT_ZOOM = 2.3;
+function portraitStyle(m) {
+  const [fx, fy] = m.face || [0.5, 0.42], dy = PORTRAIT_ZOOM, dx = PORTRAIT_ZOOM * (m.aspect || 0.9);
+  const px = (fx * dx - 0.5) / (dx - 1) * 100, py = (fy * dy - 0.5) / (dy - 1) * 100;
+  return `background-image:url('${m.poses.idle}');background-size:auto ${dy * 100}%;background-position:${px.toFixed(1)}% ${py.toFixed(1)}%`;
+}
+function drawMeetRow() {
+  $('meet').classList.toggle('hide', !roster.length);
+  $('meetRow').innerHTML = roster.map(m =>
+    `<button class="mbtn ${band.includes(m.id) ? 'friend' : ''}" data-id="${m.id}" aria-label="Meet ${m.name}">` +
+    `<span class="mface" style="${portraitStyle(m)}"></span>${band.includes(m.id) ? '<span class="mstar">⭐</span>' : ''}<small>${m.name}</small></button>`).join('');
+}
+// a wild monster's calls: its own first, then other calls on the same chord
+function callsFor(m) {
+  const own = (m.game.calls || []).map(n => CALLS.find(c => c.name === n)).filter(Boolean);
+  const more = CALLS.filter(c => c.chord === m.game.chord && !own.includes(c));
+  const list = [...own, ...more];
+  return list.length ? list : CALLS;
+}
+
+// ---- chords: high-G re-entrant, strings G C E A; frets per string for the diagrams ----
+const CHORDS = {
+  C:  { notes: [67, 60, 64, 72], frets: [0, 0, 0, 3], color: '#ff8a7a' },
+  Am: { notes: [69, 60, 64, 69], frets: [2, 0, 0, 0], color: '#9b7cf0' },
+  F:  { notes: [69, 60, 65, 69], frets: [2, 0, 1, 0], color: '#2fbdb6' },
+  G:  { notes: [67, 62, 67, 71], frets: [0, 2, 3, 2], color: '#f0b400' },
+};
+function diagramSVG(c) {
+  const ch = CHORDS[c], x = i => 14 + i * 16, y = f => 14 + f * 18;
+  let s = `<svg viewBox="0 0 76 96" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="2" width="72" height="92" rx="10" fill="#fff"/>`;
+  s += `<rect x="12" y="11" width="52" height="5" rx="2" fill="#6b4a2a"/>`;
+  for (let f = 1; f <= 4; f++) s += `<line x1="14" x2="62" y1="${y(f)}" y2="${y(f)}" stroke="#c9b7a3" stroke-width="2"/>`;
+  for (let i = 0; i < 4; i++) s += `<line x1="${x(i)}" x2="${x(i)}" y1="14" y2="${y(4)}" stroke="#8d7a66" stroke-width="2"/>`;
+  ch.frets.forEach((f, i) => { if (f) s += `<circle cx="${x(i)}" cy="${y(f) - 9}" r="6.5" fill="${ch.color}"/>`; });
+  return s + '</svg>';
+}
+
+// ---- the first five monster calls: one chord each, rhythm in beats ("ta" = 1 beat, "ti" = half) ----
+const CALLS = [
+  { name: 'Hello Strum',  chord: 'C',  beats: [0] },
+  { name: 'Two Hops',     chord: 'C',  beats: [0, 1] },
+  { name: 'Sleepy Moon',  chord: 'Am', beats: [0, 2] },
+  { name: 'Pony Gallop',  chord: 'F',  beats: [0, 1, 1.5] },
+  { name: 'Rock Out!',    chord: 'G',  beats: [0, 0.5, 1, 2] },
+  { name: 'Moon Bounce',  chord: 'Am', beats: [0, 1, 2] },
+  { name: 'Double Pony',  chord: 'F',  beats: [0, 0.5, 1, 1.5] },
+  { name: 'Big Finish',   chord: 'C',  beats: [0, 1, 1.5, 2] },
+  { name: 'Cool Cat',     chord: 'G',  beats: [0, 1] },
+  { name: 'Low Rumble',   chord: 'G',  beats: [0, 1, 2] },
+];
+const BEAT = 0.62;
+
+// ---- audio: Karplus-Strong ukulele ----
+let ctx, music;
+const plucks = {};
+function pluckBuffer(midi) {
+  if (plucks[midi]) return plucks[midi];
+  const sr = ctx.sampleRate, f = 440 * 2 ** ((midi - 69) / 12), p = Math.round(sr / f);
+  const n = Math.floor(sr * 2.2), buf = ctx.createBuffer(1, n, sr), d = buf.getChannelData(0);
+  const ring = new Float32Array(p);
+  for (let i = 0; i < p; i++) ring[i] = Math.random() * 2 - 1;
+  for (let i = 1; i < p; i++) ring[i] = 0.5 * (ring[i] + ring[i - 1]);   // softer, nylon-ish attack
+  const decay = 0.9965 - (midi - 60) * 0.00008;
+  let peak = 0;
+  for (let i = 0; i < n; i++) {
+    const j = i % p, k = (i + 1) % p;
+    d[i] = ring[j];
+    ring[j] = decay * 0.5 * (ring[j] + ring[k]);
+    peak = Math.max(peak, Math.abs(d[i]));
+  }
+  for (let i = 0; i < n; i++) d[i] /= peak;
+  return (plucks[midi] = buf);
+}
+function strum(chord, when = ctx.currentTime, vol = 0.22) {
+  CHORDS[chord].notes.forEach((m, i) => {
+    const s = ctx.createBufferSource(), g = ctx.createGain();
+    s.buffer = pluckBuffer(m);
+    g.gain.value = vol;
+    s.connect(g).connect(music);
+    s.start(when + i * 0.016);
+  });
+}
+function chime(up = true) {
+  const t = ctx.currentTime, seq = up ? [72, 76, 79, 84] : [76, 79];
+  seq.forEach((m, i) => {
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = 'triangle'; o.frequency.value = 440 * 2 ** ((m - 69) / 12);
+    g.gain.setValueAtTime(0, t + i * 0.09);
+    g.gain.linearRampToValueAtTime(0.12, t + i * 0.09 + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.001, t + i * 0.09 + 0.35);
+    o.connect(g).connect(music); o.start(t + i * 0.09); o.stop(t + i * 0.09 + 0.4);
+  });
+}
+// The game's sound is muted while the child answers, so the mic hears only the child.
+function duck(on) {
+  const t = ctx.currentTime;
+  music.gain.cancelScheduledValues(t);
+  music.gain.setTargetAtTime(on ? 0 : 1, t, on ? 0.04 : 0.02);
+}
+
+// ---- microphone: strum onsets from energy, plus a short in-memory ring buffer for the chord checker.
+//      Nothing is stored or sent; the buffer is overwritten every few seconds. ----
+// rise: jump in dB within ~65 ms; above: dB over the room; min: absolute level (dBFS) a strum must reach
+// rise5: jump in dB within ~15 ms of raw audio (an attack, even over strings still ringing)
+const SENS = { low: { rise: 12, rise5: 8, above: 16, min: -36 }, mid: { rise: 9, rise5: 5, above: 12, min: -42 }, high: { rise: 7, rise5: 4, above: 9, min: -50 } };
+let analyser, pitchAnalyser, micBuf, micOn = false, floorDb = -60, hist = [], lastOnset = 0, onStrum = null;
+let ring, ringPos = 0, ringRate = 48000;
+async function startMic() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+    const src = ctx.createMediaStreamSource(stream);
+    analyser = ctx.createAnalyser(); analyser.fftSize = 1024;
+    micBuf = new Float32Array(analyser.fftSize);
+    src.connect(analyser);
+    pitchAnalyser = ctx.createAnalyser(); pitchAnalyser.fftSize = 4096;   // longer window for the tuner
+    src.connect(pitchAnalyser);
+    // ring buffer of the last 4 s for the chord checker
+    ringRate = ctx.sampleRate;
+    ring = new Float32Array(Math.round(ringRate * 4));
+    const proc = ctx.createScriptProcessor(2048, 1, 1), sink = ctx.createGain();
+    sink.gain.value = 0;
+    proc.onaudioprocess = e => {
+      const x = e.inputBuffer.getChannelData(0);
+      for (let i = 0; i < x.length; i++) { ring[ringPos] = x[i]; ringPos = (ringPos + 1) % ring.length; }
+    };
+    src.connect(proc).connect(sink).connect(ctx.destination);
+    micOn = true;
+    $('mic').classList.remove('off');
+    $('hint').textContent = '';
+    requestAnimationFrame(micLoop);
+  } catch (e) {
+    $('hint').textContent = '👆 Tap to strum';
+  }
+}
+// The room's noise floor is the quiet end (20th percentile) of the last ~2.5 s of mic level,
+// learned only while the game's own output is measured silent, so its music never raises it.
+const levels = new Float32Array(150);
+const ROOM_FRAMES = 15;                        // no strum detection until the room has been heard this long
+let levelsN = 0, levelsI = 0, pending = [], micStrums = 0, silentSince = 0, musicMeter, musicBuf;
+// onset scan over the raw mic audio in 5 ms hops (hop counter = time base)
+let envPos = 0, hopCount = 0, lastCandHop = -1e9, lastAcceptHop = -1e9;
+const envHist = [];
+const FOLLOW_UP_HOPS = 140;                    // 0.7 s: strums after an accepted one are part of the same rhythm
+const trigLog = [];
+// A loud sound only counts as a strum if it also sounds like a uke chord (chord grader score) and
+// fades like a pluck. Measured on test sounds: strums 0.89-0.97 and 5.5-7.8 dB fade; talking <= 0.34;
+// a hummed or sung steady note scores high but fades ~0 dB; a short shout scores <= 0.49.
+const CHORDLIKE_MIN = 0.6, FADE_MIN_DB = 3, CHECK_AFTER_S = 0.45;
+function noiseFloor() {
+  if (levelsN < ROOM_FRAMES) return -60;
+  const a = Array.from(levels.subarray(0, levelsN)).sort((x, y) => x - y);
+  return a[Math.floor(levelsN * 0.2)];
+}
+function logTrigger(entry) {
+  trigLog.unshift({ time: new Date().toLocaleTimeString(), ...entry });
+  trigLog.length = Math.min(trigLog.length, 8);
+  renderTrigLog();
+}
+function renderTrigLog() {
+  $('trigLog').textContent = trigLog.length ? trigLog.map(e => e.src === 'tap'
+    ? `${e.time}  ✓ tap on screen`
+    : `${e.time}  ${e.ok ? '✓ strum' : '✗ ignored'}: chord-like ${e.chord}, fade ${e.fade} dB, loud ${e.held} dB (room ${e.room})${e.why ? ' · ' + e.why : ''}`).join('\n')
+    : 'Nothing heard yet.';
+}
+
+// Judge one candidate from the raw mic audio around it: is it loud enough, does it fade, is it chord-like?
+function judgeCandidate(c, nextGapS, followUp) {
+  const rate = ringRate, pre = 0.4;
+  const clip = snapshot(c.pos + Math.round(CHECK_AFTER_S * rate), pre + CHECK_AFTER_S, 0);
+  // 5 ms envelope; the true onset is the steepest rise near where the level detector fired
+  const hop = Math.round(0.005 * rate), env = [];
+  for (let i = 0; i + hop <= clip.length; i += hop) { let s = 0; for (let k = i; k < i + hop; k++) s += clip[k] * clip[k]; env.push(10 * Math.log10(s / hop + 1e-12)); }
+  const at = Math.round(pre / 0.005);
+  let o = at, bestRise = -Infinity;
+  for (let j = Math.max(2, at - 12); j < Math.min(env.length, at + 30); j++) { const r = env[j] - env[j - 2]; if (r > bestRise) { bestRise = r; o = j; } }
+  const meanDb = (a, b) => { const v = env.slice(o + a / 5, o + b / 5); return v.length ? 10 * Math.log10(v.reduce((s, d) => s + 10 ** (d / 10), 0) / v.length) : -100; };
+  const early = meanDb(30, 130), late = meanDb(280, 420), fade = early - late;
+  let chord = null, best = '';
+  const th = SENS[settings.sens] || SENS.mid;
+  const loudEnough = early > floorDb + th.above - 6 && early > th.min - 4;
+  if (followUp) {
+    // a strum within 0.7 s of an accepted one: the uke is proven, and the grader would subtract the
+    // still-ringing chord as background, so only loudness counts here
+    return { ok: loudEnough, why: loudEnough ? 'in rhythm' : 'too quiet', held: early.toFixed(0), fade: 'n/a', chord: 'n/a', room: floorDb.toFixed(0) };
+  }
+  if (window.UkeGrader) {
+    try {
+      const a = window.UkeGrader.analyse(clip, rate, settings.tuning);
+      for (const [k, v] of Object.entries(a.scores)) if (chord === null || v > chord) { chord = v; best = k; }
+    } catch (e) { console.warn('chord check failed', e); }
+  }
+  let why = '';
+  if (!loudEnough) why = 'too quiet';
+  // another attack follows within the fade window (fast rhythm): the next strum hides the fade, so skip that test
+  else if (nextGapS == null && fade < FADE_MIN_DB) why = 'held note, not a pluck';
+  else if (chord !== null && chord < CHORDLIKE_MIN) why = 'not chord-like (voice?)';
+  return { ok: !why, why, held: early.toFixed(0), fade: nextGapS == null ? fade.toFixed(1) : 'n/a (fast)', chord: chord === null ? 'n/a' : `${chord.toFixed(2)} (${best})`, room: floorDb.toFixed(0) };
+}
+function gameOutputDb() {
+  if (!musicMeter) return -100;
+  musicMeter.getFloatTimeDomainData(musicBuf);
+  let s = 0;
+  for (let i = 0; i < musicBuf.length; i++) s += musicBuf[i] * musicBuf[i];
+  return 10 * Math.log10(s / musicBuf.length + 1e-12);
+}
+function micLoop() {
+  analyser.getFloatTimeDomainData(micBuf);
+  let s = 0;
+  for (let i = 0; i < micBuf.length; i++) s += micBuf[i] * micBuf[i];
+  const db = 10 * Math.log10(s / micBuf.length + 1e-12), now = performance.now();
+  if (gameOutputDb() < -65) { if (!silentSince) silentSince = now; } else silentSince = 0;
+  if (silentSince && now - silentSince > 250) {
+    levels[levelsI] = db; levelsI = (levelsI + 1) % levels.length; levelsN = Math.min(levelsN + 1, levels.length);
+  }
+  floorDb = noiseFloor();
+  const th = SENS[settings.sens] || SENS.mid;
+  const lvl = Math.max(0, Math.min(1, (db - floorDb) / 30));
+  $('mic').style.setProperty('--lvl', lvl.toFixed(2));
+  $('meter').style.width = (lvl * 100).toFixed(0) + '%';
+  // candidates: a sharp attack in the raw audio (5 ms hops), never while the game's own sound (or its echo) can reach the mic
+  const hop = Math.round(0.005 * ringRate), listening = levelsN >= ROOM_FRAMES && silentSince && now - silentSince > 400;
+  while ((ringPos - envPos + ring.length) % ring.length >= hop) {
+    let e = 0;
+    for (let k = 0; k < hop; k++) { const x = ring[(envPos + k) % ring.length]; e += x * x; }
+    envPos = (envPos + hop) % ring.length; hopCount++;
+    const hdb = 10 * Math.log10(e / hop + 1e-12);
+    envHist.push(hdb); if (envHist.length > 8) envHist.shift();
+    const before = Math.min(...envHist.slice(0, -2));            // the level 10-35 ms earlier
+    if (listening && envHist.length >= 6 && hdb - before > th.rise5 && hdb > floorDb + th.above && hdb > th.min && hopCount - lastCandHop > 30) {
+      lastCandHop = hopCount;
+      pending.push({ pos: envPos, hop: hopCount });
+    }
+  }
+  // judge each candidate once the ring buffer holds enough audio after it
+  while (pending.length && (ringPos - pending[0].pos + ring.length) % ring.length >= CHECK_AFTER_S * ringRate) {
+    const c = pending.shift();
+    const gap = pending.length ? ((pending[0].pos - c.pos + ring.length) % ring.length) / ringRate : null;
+    const verdict = judgeCandidate(c, gap !== null && gap < CHECK_AFTER_S ? gap : null, c.hop - lastAcceptHop < FOLLOW_UP_HOPS);
+    if (verdict.ok) { micStrums++; lastAcceptHop = c.hop; }
+    if (onStrum) {
+      logTrigger({ src: 'mic', ...verdict });
+      if (verdict.ok) onStrum('mic', c.pos);
+    }
+  }
+  if (!$('panel').classList.contains('hide'))
+    $('micInfo').textContent = `level ${db.toFixed(0)} dB · room ${floorDb.toFixed(0)} dB · strums heard ${micStrums}`;
+  requestAnimationFrame(micLoop);
+}
+// Copy audio around an onset out of the ring buffer (pre seconds before, post after).
+function snapshot(endPos, pre, post) {
+  const n = Math.round((pre + post) * ringRate), out = new Float32Array(n);
+  let start = endPos - Math.round(pre * ringRate);
+  for (let i = 0; i < n; i++) out[i] = ring[((start + i) % ring.length + ring.length) % ring.length];
+  return out;
+}
+$('stage').addEventListener('pointerdown', e => {
+  if (e.target.closest('.go, .gear, .panel, .tuner, .tclose')) return;
+  // with a working mic, touches don't count unless the grown-up turned that on (hands touch the phone while playing)
+  if (onStrum && (!micOn || settings.tapWithMic)) { logTrigger({ src: 'tap' }); onStrum('tap'); }
+});
+
+// ---- grown-up panel: press and hold the gear for 2 s ----
+(() => {
+  let t0 = 0, raf = 0;
+  const gear = $('gear');
+  const tick = () => {
+    const k = Math.min(1, (performance.now() - t0) / 2000);
+    gear.style.setProperty('--hold', k.toFixed(3));
+    if (k >= 1) { stop(); openPanel(); } else raf = requestAnimationFrame(tick);
+  };
+  const stop = () => { cancelAnimationFrame(raf); gear.style.setProperty('--hold', 0); };
+  gear.addEventListener('pointerdown', e => { e.preventDefault(); t0 = performance.now(); raf = requestAnimationFrame(tick); });
+  for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) gear.addEventListener(ev, stop);
+  gear.addEventListener('contextmenu', e => e.preventDefault());
+})();
+function openPanel() {
+  $('optLen').value = String(settings.len); $('optSens').value = settings.sens; $('optCheck').value = settings.check;
+  $('optDiag').checked = settings.diag; $('optTap').checked = settings.tapWithMic; $('optTuning').value = settings.tuning;
+  renderTrigLog();
+  if (settings.check !== 'off' && !window.UkeGrader) $('optCheck').title = 'Chord checker not loaded';
+  renderLog();
+  $('panel').classList.remove('hide');
+}
+$('closePanel').addEventListener('click', () => {
+  settings.len = +$('optLen').value; settings.sens = $('optSens').value; settings.check = $('optCheck').value;
+  settings.diag = $('optDiag').checked; settings.tapWithMic = $('optTap').checked; settings.tuning = $('optTuning').value;
+  saveSettings();
+  if (typeof Tuner !== 'undefined' && Tuner.open) drawTunerStrings();
+  $('panel').classList.add('hide');
+  if (settings.check !== 'grownup') $('heard').textContent = '';
+});
+let sessionLog = [];
+function renderLog() {
+  if (!sessionLog.length) { $('log').innerHTML = ''; return; }
+  const head = '<tr><th>Call</th><th>Strums</th><th>Chord heard</th></tr>';
+  $('log').innerHTML = head + sessionLog.map(r =>
+    `<tr><td>${r.name} (${r.chord})</td><td>${r.count} of ${r.target}</td><td>${r.heard ? (r.heard + (r.accept ? ' ✓' : '')) : '–'}</td></tr>`).join('');
+}
+
+// ---- HUD helpers ----
+let goal = 5;
+function drawGroove(n) {
+  $('groove').innerHTML = Array.from({ length: goal }, (_, i) => `<span class="${i < n ? 'on' : ''}">⭐</span>`).join('');
+}
+function say(html) {
+  const b = $('bubble'); b.innerHTML = html; b.classList.remove('bounce'); void b.offsetWidth; b.classList.add('bounce');
+}
+function drawDots(call, filled = 0, cls = 'on') {
+  const span = Math.max(1, call.beats[call.beats.length - 1]), unit = Math.min(window.innerWidth * 0.11, 64);
+  const w = span * unit * 1.6 + unit;
+  $('dots').style.width = w + 'px';
+  $('dots').innerHTML = call.beats.map((b, i) => {
+    const half = (b % 1 !== 0) || (i + 1 < call.beats.length && call.beats[i + 1] - b === 0.5);
+    return `<i class="${half ? 'ti' : ''} ${i < filled ? cls : ''}" style="left:${unit / 2 + b * unit * 1.6}px"></i>`;
+  }).join('');
+}
+function chordTag(c) { return `<span class="chord" style="background:${CHORDS[c].color}">${c}</span>`; }
+function showCall(call) {
+  $('callname').textContent = call ? call.name : '';
+  $('diagram').innerHTML = call && settings.diag ? diagramSVG(call.chord) : '';
+}
+function burst(emojis, n = 14, spread = 40) {
+  const r = $('monWrap').getBoundingClientRect(), fx = $('fx');
+  for (let i = 0; i < n; i++) {
+    const el = document.createElement('div');
+    el.className = 'p';
+    el.textContent = emojis[i % emojis.length];
+    const a = Math.random() * Math.PI * 2, dist = spread * (0.6 + Math.random() * 0.6);
+    el.style.left = (r.left + r.width / 2) + 'px';
+    el.style.top = (r.top + r.height * 0.35) + 'px';
+    el.style.setProperty('--x', Math.cos(a) * dist + 'vw');
+    el.style.setProperty('--y', Math.sin(a) * dist + 'vw');
+    el.style.setProperty('--r', (Math.random() * 360 - 180) + 'deg');
+    el.style.setProperty('--s', (0.8 + Math.random() * 0.8).toFixed(2));
+    el.style.setProperty('--d', (0.8 + Math.random() * 0.6).toFixed(2) + 's');
+    fx.appendChild(el);
+    setTimeout(() => el.remove(), 1600);
+  }
+}
+function floatNote() {
+  const r = $('monWrap').getBoundingClientRect(), el = document.createElement('div');
+  el.className = 'note';
+  el.textContent = Math.random() < 0.5 ? '♪' : '♫';
+  el.style.left = (r.left + r.width * (0.55 + Math.random() * 0.2)) + 'px';
+  el.style.top = (r.top + r.height * 0.45) + 'px';
+  el.style.setProperty('--x', (Math.random() * 16 - 4) + 'vw');
+  el.style.color = ['#e0559a', '#7a5cd6', '#2fbdb6', '#f0a500'][Math.floor(Math.random() * 4)];
+  $('fx').appendChild(el);
+  setTimeout(() => el.remove(), 1500);
+}
+
+// ---- the game loop: call -> response -> cheer ----
+let stars = 0, correctionUsed = false;
+
+async function playCall(call) {
+  duck(false);
+  setMood('play');
+  $('mon').style.setProperty('--beat', BEAT + 's');
+  showCall(call);
+  say(`🎵 Listen! ${chordTag(call.chord)}`);
+  drawDots(call);
+  await sleep(500);
+  const t0 = ctx.currentTime + 0.05;
+  call.beats.forEach((b, i) => {
+    strum(call.chord, t0 + b * BEAT);
+    setTimeout(() => { drawDots(call, i + 1); floatNote(); floatNote(); }, (0.05 + b * BEAT) * 1000);
+  });
+  await sleep((call.beats[call.beats.length - 1] * BEAT + 1.0) * 1000);
+}
+
+// Resolves with { count, firstPos } once the child has answered (or after timeoutMs with count 0).
+function listen(call, timeoutMs = 9000) {
+  return new Promise(resolve => {
+    duck(true);
+    setMood('listen');
+    say(`👂 Your turn! ${chordTag(call.chord)}`);
+    drawDots(call);
+    const n = call.beats.length;
+    let count = 0, firstSrc = null, audio = null, settle = null, cap = null, armed = false;
+    const finish = () => { onStrum = null; clearTimeout(timer); clearTimeout(settle); clearTimeout(cap); resolve({ count, firstSrc, audio }); };
+    const timer = setTimeout(finish, timeoutMs);
+    setTimeout(() => { armed = true; }, 250);                     // let the monster's last note fade
+    onStrum = (src, pos) => {
+      if (!armed) return;
+      if (count === 0) {
+        firstSrc = src;
+        cap = setTimeout(finish, 6000);                             // a child who keeps strumming still moves on
+        // keep ~0.9 s before and 0.7 s after the first strum for the chord checker (in memory only)
+        if (src === 'mic' && settings.check !== 'off') setTimeout(() => { audio = snapshot(pos + Math.round(0.7 * ringRate), 1.6, 0); }, 750);
+      }
+      count++;
+      drawDots(call, Math.min(count, n), 'you');
+      burst(['✨'], 4, 18);
+      const mon = $('mon'); mon.classList.remove('bump'); void mon.offsetWidth; mon.classList.add('bump');
+      rigStrum();
+      clearTimeout(timer);
+      if (count > n) return;                                        // extra strums don't keep the turn open
+      clearTimeout(settle);
+      settle = setTimeout(finish, count === n ? 800 : 1800);      // wait a moment for more strums
+    };
+  });
+}
+
+// Run the chord checker on the child's first strum (mic only). Returns null when off or unavailable.
+async function checkChord(call, ans) {
+  if (settings.check === 'off' || !window.UkeGrader || ans.firstSrc !== 'mic' || !ans.audio) return null;
+  try {
+    // threshold 0.80: on the first real clips (Oct 2026) good strums scored 0.82-0.99 and wrong chords <= 0.76;
+    // the presence gate (-30 dB) is what rejects muted strings. Python defaults stay at 0.89 until more data.
+    const g = window.UkeGrader.grade(ans.audio, ringRate, call.chord, { tuning: settings.tuning, threshold: 0.80 });
+    return { heard: g.argmax, accept: !!g.accept, score: g.scores && g.scores[call.chord] };
+  } catch (e) { console.warn('grader failed', e); return null; }
+}
+
+async function cheer(call, ans, check) {
+  onStrum = null;
+  duck(false);
+  setMood('cheer');
+  chime(true);
+  const exact = ans.count === call.beats.length;
+  const great = exact && (!check || check.accept || settings.check !== 'monster');
+  burst(great ? ['⭐', '🌟', '✨', '💖'] : ['⭐', '✨'], great ? 18 : 10, great ? 42 : 30);
+  if (check && settings.check === 'monster' && check.accept) say(`🎯 Perfect ${chordTag(call.chord)}!`);
+  else say(exact ? (Math.random() < 0.5 ? '🤘 Rock on!' : '🎉 Just like me!') : '😄 Yay, you played!');
+  stars++;
+  drawGroove(stars);
+  await sleep(1300);
+}
+
+// One gentle correction per session at most, and only when the monster is set to react to chords.
+async function maybeCorrect(call, check) {
+  if (!check || check.accept || settings.check !== 'monster' || correctionUsed) return;
+  correctionUsed = true;
+  setMood('tryagain');
+  showCall(call);
+  say(`🙂 Let’s try ${chordTag(call.chord)} together!`);
+  await sleep(1800);
+  await playCall(call);
+  const ans = await listen(call, 12000);
+  if (ans.count) { const again = await checkChord(call, ans); await cheerSoft(call, again); }
+}
+async function cheerSoft(call, check) {
+  duck(false);
+  setMood('cheer');
+  chime(true);
+  burst(['⭐', '✨', '💖'], 12, 36);
+  say(check && check.accept ? `🎯 That’s ${chordTag(call.chord)}!` : '💖 Great practice!');
+  await sleep(1200);
+}
+
+async function party() {
+  showCall(null);
+  $('dots').innerHTML = '';
+  setMood('party');
+  say(active ? `💖 ${active.name} is your friend! 💖` : '💖 New friend! 💖');
+  const t = ctx.currentTime + 0.05;
+  ['C', 'Am', 'F', 'G', 'C'].forEach((c, i) => strum(c, t + i * 0.32, 0.2));
+  for (let i = 0; i < 4; i++) { burst(['🎉', '⭐', '💖', '🎸', '✨'], 16, 48); await sleep(600); }
+  setMood('goodbye');
+  say('👋 See you soon!');
+  await sleep(2200);
+  if (active && !band.includes(active.id)) { band.push(active.id); saveBand(); }
+  $('startTitle').textContent = active ? `${active.name} joined your band!` : 'You made a friend!';
+  $('startText').textContent = active ? 'Meet another monster, or play again.' : 'Want to play again?';
+  $('goBtn').textContent = '▶ Play';
+  active = null;
+  setMood('idle');
+  drawMeetRow();
+  $('start').classList.remove('hide');
+}
+
+// Meet a wild monster: it appears, plays calls on its chord, and joins the band when the stars are full.
+async function encounter(m) {
+  active = m;
+  showCall(null);
+  $('dots').innerHTML = '';
+  setMood('cheer');
+  say(`✨ A wild ${m.name} appears!`);
+  await sleep(1800);
+  await game(callsFor(m));
+}
+
+async function game(calls = CALLS) {
+  goal = settings.len;
+  stars = 0; correctionUsed = false; sessionLog = [];
+  drawGroove(0);
+  if (micOn && levelsN < ROOM_FRAMES) {
+    // let the mic hear the quiet room first, so it knows what a strum stands out from
+    setMood('idle');
+    say('🎧 Getting ready…');
+    for (let t = 0; t < 30 && levelsN < ROOM_FRAMES; t++) await sleep(100);
+  }
+  for (let i = 0; i < goal; i++) {
+    const call = calls[i % calls.length];
+    await playCall(call);
+    let ans = await listen(call);
+    if (ans.count === 0) {
+      // no answer: gentle nudge and hear it again, never a fail
+      duck(false);
+      setMood('tryagain');
+      say('🙂 Let’s hear it again!');
+      await sleep(1200);
+      await playCall(call);
+      ans = await listen(call, 15000);
+      if (ans.count === 0) { say('🎸 Strum any time!'); ans = await listen(call, 600000); }
+    }
+    await sleep(settings.check === 'off' ? 0 : 150);
+    const check = await checkChord(call, ans);
+    sessionLog.push({ name: call.name, chord: call.chord, target: call.beats.length, count: ans.count, heard: check && check.heard, accept: check && check.accept });
+    if (check && settings.check === 'grownup') $('heard').textContent = `heard ${check.heard}${check.accept ? ' ✓' : ''}`;
+    await cheer(call, ans, check);
+    await maybeCorrect(call, check);
+  }
+  await party();
+}
+
+// Audio and the mic start on the first button press (browsers require a tap first).
+async function ensureAudio() {
+  if (!ctx) {
+    ctx = new (window.AudioContext || window.webkitAudioContext)();
+    music = ctx.createGain(); music.connect(ctx.destination);
+    musicMeter = ctx.createAnalyser(); musicMeter.fftSize = 512; musicBuf = new Float32Array(512);
+    music.connect(musicMeter);                     // lets the mic code know when the game itself is silent
+    Object.values(CHORDS).forEach(c => c.notes.forEach(pluckBuffer));
+    await startMic();
+  }
+  await ctx.resume();
+}
+$('goBtn').addEventListener('click', async () => {
+  $('start').classList.add('hide');
+  active = null;
+  await ensureAudio();
+  game();
+});
+$('meetRow').addEventListener('click', async e => {
+  const b = e.target.closest('.mbtn'); if (!b) return;
+  const m = roster.find(x => x.id === b.dataset.id); if (!m) return;
+  $('start').classList.add('hide');
+  await ensureAudio();
+  encounter(m);
+});
+$('tuneBtn').addEventListener('click', async () => {
+  $('start').classList.add('hide');
+  await ensureAudio();
+  openTuner(() => game());
+});
+
+if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+goal = settings.len;
+drawGroove(0);
+loadRoster();
+</script>
+<script src="tuner.js"></script>
+</body>
+</html>
