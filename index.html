@@ -108,8 +108,8 @@
   .dots i.you { background: var(--pink); border-color: #e0559a; transform: translate(-50%, -50%) scale(1.15); }
   .diagram { width: min(15vw, 9dvh); filter: drop-shadow(0 4px 8px rgba(59,42,85,.18)); }
   .diagram:empty { display: none; }
-  .diagram.multi { width: auto; display: flex; gap: 1.5vw; }
-  .diagram.multi svg { width: min(11vw, 7dvh); }
+  .diagram.tab { width: min(86vw, 560px); }
+  .diagram.tab svg { display: block; width: 100%; }
 
   /* particles */
   .fx { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
@@ -410,7 +410,6 @@ const CHORDS = {
   Am: { notes: [69, 60, 64, 69], frets: [2, 0, 0, 0], color: '#9b7cf0' },
   F:  { notes: [69, 60, 65, 69], frets: [2, 0, 1, 0], color: '#2fbdb6' },
   G:  { notes: [67, 62, 67, 71], frets: [0, 2, 3, 2], color: '#f0b400' },
-  D:  { notes: [69, 62, 66, 69], frets: [2, 2, 2, 0], color: '#5b8def' },
 };
 function diagramSVG(c) {
   const ch = CHORDS[c], x = i => 14 + i * 16, y = f => 14 + f * 18;
@@ -435,11 +434,21 @@ const CALLS = [
   { name: 'Cool Cat',     chord: 'G',  beats: [0, 1] },
   { name: 'Low Rumble',   chord: 'G',  beats: [0, 1, 2] },
 ];
-// A riff changes chord on each strum: `chords` has one chord per beat, `chord` is the first (checked
-// and logged). Iron Man's opening (B D D E E) moved to easy uke shapes with the same steps: Am C C D D.
-const IRON_MAN = { name: 'Iron Man', chord: 'Am', chords: ['Am', 'C', 'C', 'D', 'D'], beats: [0, 2, 3, 4, 4.5] };
-const chordAt = (call, i) => (call.chords ? call.chords[i] : call.chord);
-const callChords = call => (call.chords || [call.chord]).filter((c, i, a) => c !== a[i - 1]);   // in order, no repeats
+// ---- riffs: single notes from a tab, [string, fret] per beat (high-G: G C E A) ----
+const OPEN = { G: 67, C: 60, E: 64, A: 69 }, TAB_ROWS = ['A', 'E', 'C', 'G'];
+const riff = (name, tab, beats) => ({ name, chord: null, beats, notes: tab.map(([s, f]) => ({ s, f, midi: OPEN[s] + f })) });
+function joinRiffs(name, parts) {        // one long call: each part starts a beat after the last one ends
+  let at = 0, beats = [], tab = [];
+  for (const p of parts) { beats.push(...p.beats.map(b => b + at)); tab.push(...p.notes.map(n => [n.s, n.f])); at = beats[beats.length - 1] + 1; }
+  return riff(name, tab, beats);
+}
+// Iron Man's main riff, from the tab the user shared: three parts, then the whole thing
+const IRON_PARTS = [
+  riff('Iron Man 1', [['C', 7], ['E', 5], ['E', 5], ['E', 7], ['E', 7]], [0, 2, 3, 4, 4.5]),
+  riff('Iron Man 2', [['A', 5], ['A', 4], ['A', 5], ['A', 4], ['A', 5], ['A', 4]], [0, 0.5, 1, 1.5, 2, 2.5]),
+  riff('Iron Man 3', [['E', 5], ['E', 5], ['E', 7], ['E', 7]], [0, 1, 2, 2.5]),
+];
+const IRON_MAN = [...IRON_PARTS, joinRiffs('Iron Man: whole riff', IRON_PARTS)];
 const BEAT = 0.62;
 
 // ---- audio: Karplus-Strong ukulele ----
@@ -462,6 +471,13 @@ function pluckBuffer(midi) {
   }
   for (let i = 0; i < n; i++) d[i] /= peak;
   return (plucks[midi] = buf);
+}
+function pluck(midi, when = ctx.currentTime, vol = 0.32) {
+  const s = ctx.createBufferSource(), g = ctx.createGain();
+  s.buffer = pluckBuffer(midi);
+  g.gain.value = vol;
+  s.connect(g).connect(music);
+  s.start(when);
 }
 function strum(chord, when = ctx.currentTime, vol = 0.22) {
   CHORDS[chord].notes.forEach((m, i) => {
@@ -538,6 +554,9 @@ const trigLog = [];
 // fades like a pluck. Measured on test sounds: strums 0.89-0.97 and 5.5-7.8 dB fade; talking <= 0.34;
 // a hummed or sung steady note scores high but fades ~0 dB; a short shout scores <= 0.49.
 const CHORDLIKE_MIN = 0.6, FADE_MIN_DB = 3, CHECK_AFTER_S = 0.45;
+// During a riff the child plucks single notes, which aren't chords: then only loudness and the pluck
+// fade count, so talking is kept out by the fade test alone (weaker than for chords).
+let listenNotes = false;
 function noiseFloor() {
   if (levelsN < ROOM_FRAMES) return -60;
   const a = Array.from(levels.subarray(0, levelsN)).sort((x, y) => x - y);
@@ -585,7 +604,7 @@ function judgeCandidate(c, nextGapS, followUp) {
   if (!loudEnough) why = 'too quiet';
   // another attack follows within the fade window (fast rhythm): the next strum hides the fade, so skip that test
   else if (nextGapS == null && fade < FADE_MIN_DB) why = 'held note, not a pluck';
-  else if (chord !== null && chord < CHORDLIKE_MIN) why = 'not chord-like (voice?)';
+  else if (!listenNotes && chord !== null && chord < CHORDLIKE_MIN) why = 'not chord-like (voice?)';
   return { ok: !why, why, held: early.toFixed(0), fade: nextGapS == null ? fade.toFixed(1) : 'n/a (fast)', chord: chord === null ? 'n/a' : `${chord.toFixed(2)} (${best})`, room: floorDb.toFixed(0) };
 }
 function gameOutputDb() {
@@ -686,7 +705,7 @@ function renderLog() {
   if (!sessionLog.length) { $('log').innerHTML = ''; return; }
   const head = '<tr><th>Call</th><th>Strums</th><th>Chord heard</th></tr>';
   $('log').innerHTML = head + sessionLog.map(r =>
-    `<tr><td>${r.name} (${r.chord})</td><td>${r.count} of ${r.target}</td><td>${r.heard ? (r.heard + (r.accept ? ' ✓' : '')) : '–'}</td></tr>`).join('');
+    `<tr><td>${r.name} (${r.chord || 'notes'})</td><td>${r.count} of ${r.target}</td><td>${r.heard ? (r.heard + (r.accept ? ' ✓' : '')) : '–'}</td></tr>`).join('');
 }
 
 // ---- HUD helpers ----
@@ -697,7 +716,26 @@ function drawGroove(n) {
 function say(html) {
   const b = $('bubble'); b.innerHTML = html; b.classList.remove('bounce'); void b.offsetWidth; b.classList.add('bounce');
 }
+// a riff is shown as a tab (A on top, like the tabs people share); played notes light up
+function tabSVG(call, filled = 0, cls = 'on') {
+  // spaced by beat; a long riff is spaced evenly instead so it stays readable on a phone
+  const S = 42, span = call.beats[call.beats.length - 1], even = 46 + span * S + 18 > 420;
+  const xAt = i => 40 + (even ? i * 23 : call.beats[i] * S);
+  const w = xAt(call.notes.length - 1) + 24, y = s => 14 + TAB_ROWS.indexOf(s) * 20;
+  let g = `<svg viewBox="0 0 ${w} 88" xmlns="http://www.w3.org/2000/svg"><rect x="1" y="1" width="${w - 2}" height="86" rx="12" fill="#fff"/>`;
+  TAB_ROWS.forEach(s => {
+    g += `<text x="12" y="${y(s) + 4}" font-size="12" font-weight="800" fill="#6b5a80">${s}</text>`;
+    g += `<line x1="26" x2="${w - 10}" y1="${y(s)}" y2="${y(s)}" stroke="#c9b7a3" stroke-width="2"/>`;
+  });
+  call.notes.forEach((n, i) => {
+    const x = xAt(i), lit = i < filled;
+    g += `<circle cx="${x}" cy="${y(n.s)}" r="9" fill="${lit ? (cls === 'you' ? '#ff8fc8' : '#ffd23f') : '#fff'}" stroke="${lit ? (cls === 'you' ? '#e0559a' : '#f0a500') : '#8d7a66'}" stroke-width="2"/>`;
+    g += `<text x="${x}" y="${y(n.s) + 4}" font-size="11" font-weight="800" text-anchor="middle" fill="#3b2a55">${n.f}</text>`;
+  });
+  return g + '</svg>';
+}
 function drawDots(call, filled = 0, cls = 'on') {
+  if (call.notes) { $('dots').style.width = '0px'; $('dots').innerHTML = ''; $('diagram').innerHTML = tabSVG(call, filled, cls); return; }
   const span = Math.max(1, call.beats[call.beats.length - 1]);
   const unit = Math.min(window.innerWidth * 0.11, 64, window.innerWidth * 0.55 / (span * 1.6 + 1));   // long riffs still fit
   const w = span * unit * 1.6 + unit;
@@ -708,12 +746,11 @@ function drawDots(call, filled = 0, cls = 'on') {
   }).join('');
 }
 function chordTag(c) { return `<span class="chord" style="background:${CHORDS[c].color}">${c}</span>`; }
-const callTag = call => callChords(call).map(chordTag).join(' ');      // in play order; arrows didn't fit the bubble
+const callTag = call => (call.notes ? '🤘' : chordTag(call.chord));
 function showCall(call) {
   $('callname').textContent = call ? call.name : '';
-  const cs = call ? callChords(call) : [];
-  $('diagram').classList.toggle('multi', cs.length > 1);
-  $('diagram').innerHTML = call && settings.diag ? cs.map(diagramSVG).join('') : '';
+  $('diagram').classList.toggle('tab', !!(call && call.notes));
+  $('diagram').innerHTML = !call ? '' : call.notes ? tabSVG(call) : settings.diag ? diagramSVG(call.chord) : '';
 }
 function burst(emojis, n = 14, spread = 40) {
   const r = $('monWrap').getBoundingClientRect(), fx = $('fx');
@@ -758,7 +795,7 @@ async function playCall(call) {
   await sleep(500);
   const t0 = ctx.currentTime + 0.05;
   call.beats.forEach((b, i) => {
-    strum(chordAt(call, i), t0 + b * BEAT);
+    if (call.notes) pluck(call.notes[i].midi, t0 + b * BEAT); else strum(call.chord, t0 + b * BEAT);
     setTimeout(() => { drawDots(call, i + 1); floatNote(); floatNote(); }, (0.05 + b * BEAT) * 1000);
   });
   await sleep((call.beats[call.beats.length - 1] * BEAT + 1.0) * 1000);
@@ -769,6 +806,7 @@ function listen(call, timeoutMs = 9000) {
   return new Promise(resolve => {
     duck(true);
     setMood('listen');
+    listenNotes = !!call.notes;
     say(`👂 Your turn! ${callTag(call)}`);
     drawDots(call);
     const n = call.beats.length;
@@ -780,7 +818,8 @@ function listen(call, timeoutMs = 9000) {
       if (!armed) return;
       if (count === 0) {
         firstSrc = src;
-        cap = setTimeout(finish, 6000);                             // a child who keeps strumming still moves on
+        // a child who keeps strumming still moves on; long riffs get their own length plus room
+        cap = setTimeout(finish, Math.max(6000, (call.beats[n - 1] * BEAT + 2.5) * 1000));
         // keep ~0.9 s before and 0.7 s after the first strum for the chord checker (in memory only)
         if (src === 'mic' && settings.check !== 'off') setTimeout(() => { audio = snapshot(pos + Math.round(0.7 * ringRate), 1.6, 0); }, 750);
       }
@@ -799,7 +838,7 @@ function listen(call, timeoutMs = 9000) {
 
 // Run the chord checker on the child's first strum (mic only). Returns null when off or unavailable.
 async function checkChord(call, ans) {
-  if (settings.check === 'off' || !window.UkeGrader || ans.firstSrc !== 'mic' || !ans.audio) return null;
+  if (call.notes || settings.check === 'off' || !window.UkeGrader || ans.firstSrc !== 'mic' || !ans.audio) return null;   // riffs: no chord to check
   try {
     // threshold 0.80: on the first real clips (Oct 2026) good strums scored 0.82-0.99 and wrong chords <= 0.76;
     // the presence gate (-30 dB) is what rejects muted strings. Python defaults stay at 0.89 until more data.
@@ -876,8 +915,8 @@ async function encounter(m) {
   await game(callsFor(m));
 }
 
-async function game(calls = CALLS) {
-  goal = settings.len;
+async function game(calls = CALLS, length = settings.len) {
+  goal = length;
   stars = 0; correctionUsed = false; sessionLog = [];
   drawGroove(0);
   if (micOn && levelsN < ROOM_FRAMES) {
@@ -918,6 +957,7 @@ async function ensureAudio() {
     musicMeter = ctx.createAnalyser(); musicMeter.fftSize = 512; musicBuf = new Float32Array(512);
     music.connect(musicMeter);                     // lets the mic code know when the game itself is silent
     Object.values(CHORDS).forEach(c => c.notes.forEach(pluckBuffer));
+    IRON_MAN.forEach(c => c.notes.forEach(n => pluckBuffer(n.midi)));
     await startMic();
   }
   await ctx.resume();
@@ -939,7 +979,7 @@ $('ironBtn').addEventListener('click', async () => {
   $('start').classList.add('hide');
   active = null;
   await ensureAudio();
-  game([IRON_MAN]);
+  game(IRON_MAN, IRON_MAN.length);        // the three parts, then the whole riff
 });
 $('tuneBtn').addEventListener('click', async () => {
   $('start').classList.add('hide');
