@@ -130,21 +130,21 @@
   /* start / end overlay */
   .overlay { position: absolute; inset: 0; display: grid; place-items: safe center; overflow-y: auto; background: rgba(127,211,245,.55); backdrop-filter: blur(3px); z-index: 10; }
   .overlay.hide { display: none; }
-  .card { text-align: center; padding: 4dvh 6vw; max-width: 560px; }
+  .card { text-align: center; padding: 4dvh min(6vw, 32px); width: min(100%, 560px); box-sizing: border-box; }   /* a fixed width: as a grid item it could shrink to one word per line */
   .card h1 { margin: 0 0 1dvh; font-size: min(11vw, 7dvh); line-height: 1.1; color: #fff; text-shadow: 0 4px 0 #e0559a, 0 8px 18px rgba(59,42,85,.3); letter-spacing: .02em; }
   .card p { margin: 0 0 3dvh; font-size: min(5vw, 3dvh); font-weight: 700; color: var(--ink); }
-  .go { font: inherit; font-size: min(9vw, 6dvh); font-weight: 800; color: #fff; border: 0; border-radius: 999px; padding: 1.6dvh 12vw; background: linear-gradient(#ff8fc8, #e0559a); box-shadow: 0 8px 0 #b83f7c, 0 14px 26px rgba(59,42,85,.3); cursor: pointer; animation: breathe 1.6s ease-in-out infinite; }
+  .go { font: inherit; font-size: min(9vw, 6dvh); font-weight: 800; color: #fff; border: 0; border-radius: 999px; padding: 1.6dvh 12vw; background: linear-gradient(#ff8fc8, #e0559a); box-shadow: 0 8px 0 #b83f7c, 0 14px 26px rgba(59,42,85,.3); cursor: pointer; animation: breathe 1.6s ease-in-out infinite; white-space: nowrap; }
   .go:active { transform: translateY(6px); box-shadow: 0 2px 0 #b83f7c; }
   .meet { margin-top: 2.6dvh; }
   .meet.hide { display: none; }
   .meet h3 { margin: 0 0 1.2dvh; font-size: min(5vw, 3dvh); color: #fff; text-shadow: 0 2px 0 #e0559a, 0 4px 10px rgba(59,42,85,.3); }
-  .mrow { display: flex; flex-wrap: wrap; justify-content: center; gap: 2vw; }
-  .mbtn { position: relative; width: min(14.5vw, 9.5dvh); border: 0; background: none; padding: 0; font: inherit; color: var(--ink); cursor: pointer; }
+  .mrow { display: flex; justify-content: center; gap: min(2vw, 12px); }     /* one row: faces shrink to fit */
+  .mbtn { position: relative; flex: 0 1 min(14.5vw, 9.5dvh, 84px); min-width: 0; border: 0; background: none; padding: 0; font: inherit; color: var(--ink); cursor: pointer; }
   .mface { display: block; width: 100%; aspect-ratio: 1; border-radius: 50%; overflow: hidden; background: #fff; border: 4px solid rgba(255,255,255,.9); box-shadow: 0 4px 12px rgba(59,42,85,.2); }
   .mbtn.friend .mface { border-color: var(--sun); }
   .mface { background-repeat: no-repeat; }
   .mstar { position: absolute; right: -6%; top: -6%; font-size: min(5vw, 3dvh); }
-  .mbtn small { display: block; margin-top: .4dvh; font-weight: 800; font-size: min(3.6vw, 2.2dvh); }
+  .mbtn small { display: block; margin-top: .4dvh; font-weight: 800; font-size: min(3.6vw, 2.2dvh, 15px); }
   .mbtn:active .mface { transform: scale(.94); }
   .small { margin-top: 3dvh; font-size: min(3.6vw, 2.1dvh) !important; opacity: .8; }
 
