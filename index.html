@@ -108,6 +108,8 @@
   .dots i.you { background: var(--pink); border-color: #e0559a; transform: translate(-50%, -50%) scale(1.15); }
   .diagram { width: min(15vw, 9dvh); filter: drop-shadow(0 4px 8px rgba(59,42,85,.18)); }
   .diagram:empty { display: none; }
+  .diagram.multi { width: auto; display: flex; gap: 1.5vw; }
+  .diagram.multi svg { width: min(11vw, 7dvh); }
 
   /* particles */
   .fx { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
@@ -133,7 +135,7 @@
   .card { text-align: center; padding: 4dvh min(6vw, 32px); width: min(100%, 560px); box-sizing: border-box; }   /* a fixed width: as a grid item it could shrink to one word per line */
   .card h1 { margin: 0 0 1dvh; font-size: min(11vw, 7dvh); line-height: 1.1; color: #fff; text-shadow: 0 4px 0 #e0559a, 0 8px 18px rgba(59,42,85,.3); letter-spacing: .02em; }
   .card p { margin: 0 0 3dvh; font-size: min(5vw, 3dvh); font-weight: 700; color: var(--ink); }
-  .go { font: inherit; font-size: min(9vw, 6dvh); font-weight: 800; color: #fff; border: 0; border-radius: 999px; padding: 1.6dvh 12vw; background: linear-gradient(#ff8fc8, #e0559a); box-shadow: 0 8px 0 #b83f7c, 0 14px 26px rgba(59,42,85,.3); cursor: pointer; animation: breathe 1.6s ease-in-out infinite; white-space: nowrap; }
+  .go { font: inherit; font-size: min(9vw, 6dvh, 44px); font-weight: 800; color: #fff; border: 0; border-radius: 999px; padding: 1.6dvh min(12vw, 56px); max-width: 100%; box-sizing: border-box; background: linear-gradient(#ff8fc8, #e0559a); box-shadow: 0 8px 0 #b83f7c, 0 14px 26px rgba(59,42,85,.3); cursor: pointer; animation: breathe 1.6s ease-in-out infinite; white-space: nowrap; }
   .go:active { transform: translateY(6px); box-shadow: 0 2px 0 #b83f7c; }
   .meet { margin-top: 2.6dvh; }
   .meet.hide { display: none; }
@@ -171,8 +173,10 @@
   .heard:empty { display: none; }
 
   /* tuning step */
-  .go.alt { display: block; margin: 2.2dvh auto 0; font-size: min(5.6vw, 3.6dvh); padding: 1.1dvh 8vw; background: linear-gradient(#5fe0d8, #2fbdb6); box-shadow: 0 6px 0 #1f8f8a, 0 10px 20px rgba(59,42,85,.25); animation: none; }
+  .go.alt { display: block; margin: 2.2dvh auto 0; font-size: min(5.6vw, 3.6dvh, 26px); padding: 1.1dvh min(8vw, 40px); background: linear-gradient(#5fe0d8, #2fbdb6); box-shadow: 0 6px 0 #1f8f8a, 0 10px 20px rgba(59,42,85,.25); animation: none; }
   .go.alt:active { box-shadow: 0 2px 0 #1f8f8a; }
+  .go.riff { margin-top: 1.6dvh; background: linear-gradient(#a98bff, #7a5cd6); box-shadow: 0 6px 0 #563fa8, 0 10px 20px rgba(59,42,85,.25); }
+  .go.riff:active { box-shadow: 0 2px 0 #563fa8; }
   .go.hide { display: none; }
   .tuning .groove, .tuning .callname, .tuning .row, .tuning .hint { display: none; }
   .tuner { position: absolute; left: 0; right: 0; top: calc(env(safe-area-inset-top) + 15dvh); z-index: 9; display: flex; flex-direction: column; align-items: center; gap: 1.4dvh; padding: 0 4vw; }
@@ -242,6 +246,7 @@
       <p id="startText">Listen to the monster, then strum back!</p>
       <button class="go" id="goBtn">▶ Play</button>
       <button class="go alt" id="tuneBtn">🎵 Tune my uke</button>
+      <button class="go alt riff" id="ironBtn">🤘 Iron Man riff</button>
       <div class="meet hide" id="meet">
         <h3>Meet a monster</h3>
         <div class="mrow" id="meetRow"></div>
@@ -405,6 +410,7 @@ const CHORDS = {
   Am: { notes: [69, 60, 64, 69], frets: [2, 0, 0, 0], color: '#9b7cf0' },
   F:  { notes: [69, 60, 65, 69], frets: [2, 0, 1, 0], color: '#2fbdb6' },
   G:  { notes: [67, 62, 67, 71], frets: [0, 2, 3, 2], color: '#f0b400' },
+  D:  { notes: [69, 62, 66, 69], frets: [2, 2, 2, 0], color: '#5b8def' },
 };
 function diagramSVG(c) {
   const ch = CHORDS[c], x = i => 14 + i * 16, y = f => 14 + f * 18;
@@ -429,6 +435,11 @@ const CALLS = [
   { name: 'Cool Cat',     chord: 'G',  beats: [0, 1] },
   { name: 'Low Rumble',   chord: 'G',  beats: [0, 1, 2] },
 ];
+// A riff changes chord on each strum: `chords` has one chord per beat, `chord` is the first (checked
+// and logged). Iron Man's opening (B D D E E) moved to easy uke shapes with the same steps: Am C C D D.
+const IRON_MAN = { name: 'Iron Man', chord: 'Am', chords: ['Am', 'C', 'C', 'D', 'D'], beats: [0, 2, 3, 4, 4.5] };
+const chordAt = (call, i) => (call.chords ? call.chords[i] : call.chord);
+const callChords = call => (call.chords || [call.chord]).filter((c, i, a) => c !== a[i - 1]);   // in order, no repeats
 const BEAT = 0.62;
 
 // ---- audio: Karplus-Strong ukulele ----
@@ -687,7 +698,8 @@ function say(html) {
   const b = $('bubble'); b.innerHTML = html; b.classList.remove('bounce'); void b.offsetWidth; b.classList.add('bounce');
 }
 function drawDots(call, filled = 0, cls = 'on') {
-  const span = Math.max(1, call.beats[call.beats.length - 1]), unit = Math.min(window.innerWidth * 0.11, 64);
+  const span = Math.max(1, call.beats[call.beats.length - 1]);
+  const unit = Math.min(window.innerWidth * 0.11, 64, window.innerWidth * 0.55 / (span * 1.6 + 1));   // long riffs still fit
   const w = span * unit * 1.6 + unit;
   $('dots').style.width = w + 'px';
   $('dots').innerHTML = call.beats.map((b, i) => {
@@ -696,9 +708,12 @@ function drawDots(call, filled = 0, cls = 'on') {
   }).join('');
 }
 function chordTag(c) { return `<span class="chord" style="background:${CHORDS[c].color}">${c}</span>`; }
+const callTag = call => callChords(call).map(chordTag).join(' ');      // in play order; arrows didn't fit the bubble
 function showCall(call) {
   $('callname').textContent = call ? call.name : '';
-  $('diagram').innerHTML = call && settings.diag ? diagramSVG(call.chord) : '';
+  const cs = call ? callChords(call) : [];
+  $('diagram').classList.toggle('multi', cs.length > 1);
+  $('diagram').innerHTML = call && settings.diag ? cs.map(diagramSVG).join('') : '';
 }
 function burst(emojis, n = 14, spread = 40) {
   const r = $('monWrap').getBoundingClientRect(), fx = $('fx');
@@ -738,12 +753,12 @@ async function playCall(call) {
   setMood('play');
   $('mon').style.setProperty('--beat', BEAT + 's');
   showCall(call);
-  say(`🎵 Listen! ${chordTag(call.chord)}`);
+  say(`🎵 Listen! ${callTag(call)}`);
   drawDots(call);
   await sleep(500);
   const t0 = ctx.currentTime + 0.05;
   call.beats.forEach((b, i) => {
-    strum(call.chord, t0 + b * BEAT);
+    strum(chordAt(call, i), t0 + b * BEAT);
     setTimeout(() => { drawDots(call, i + 1); floatNote(); floatNote(); }, (0.05 + b * BEAT) * 1000);
   });
   await sleep((call.beats[call.beats.length - 1] * BEAT + 1.0) * 1000);
@@ -754,7 +769,7 @@ function listen(call, timeoutMs = 9000) {
   return new Promise(resolve => {
     duck(true);
     setMood('listen');
-    say(`👂 Your turn! ${chordTag(call.chord)}`);
+    say(`👂 Your turn! ${callTag(call)}`);
     drawDots(call);
     const n = call.beats.length;
     let count = 0, firstSrc = null, audio = null, settle = null, cap = null, armed = false;
@@ -919,6 +934,12 @@ $('meetRow').addEventListener('click', async e => {
   $('start').classList.add('hide');
   await ensureAudio();
   encounter(m);
+});
+$('ironBtn').addEventListener('click', async () => {
+  $('start').classList.add('hide');
+  active = null;
+  await ensureAudio();
+  game([IRON_MAN]);
 });
 $('tuneBtn').addEventListener('click', async () => {
   $('start').classList.add('hide');
