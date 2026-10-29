@@ -57,6 +57,12 @@
   .mon.rigged .rig { display: block; }
   .mon.rigged img { visibility: hidden; }              /* keeps the sprite's size, the rig draws over it */
   .mon.rigged { animation: none !important; }          /* the rig animates itself */
+  .puppet div { position: absolute; inset: 0; will-change: transform; }
+  .mon .puppet img { position: absolute; height: auto; max-width: none; object-fit: fill; }
+  .mon.rigged .puppet img { visibility: visible; }
+  .spark { position: absolute; z-index: 2; font-size: min(7vw, 4.5dvh); pointer-events: none; animation: spark .7s ease-out forwards; }
+  @keyframes spark { from { transform: translate(-50%, -50%) scale(.3); opacity: 1; }
+    to { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(1.15) rotate(25deg); opacity: 0; } }
   .mon.idle, .mon.tryagain, .mon.goodbye { animation: breathe 2.4s ease-in-out infinite; }
   .mon.play   { animation: sway var(--beat, .6s) ease-in-out infinite alternate; }
   .mon.listen { animation: lean 1.8s ease-in-out infinite; }
@@ -321,6 +327,7 @@ function setMood(m) {
   // the monster on stage: a wild one from the roster, else the main bandmate (who also has the tuning pose)
   $('monImg').src = (active && active.sprites[key]) || SPRITES[key] || 'monster.webp';
   $('stage').classList.toggle('listening', m === 'listen');
+  puppet.since = performance.now() / 1000;
   rigMood();
 }
 
@@ -329,11 +336,15 @@ function setMood(m) {
 const RIG_MOODS = ['idle', 'play', 'listen', 'cheer', 'tryagain', 'goodbye', 'tune', 'party'];
 const rig = { live: null, mood: null, strum: null };
 function rigMood() {
-  const on = !!(rig.live && !active);   // wild monsters stay sprites until they get rigs too
+  const on = !!((rig.live || puppet.ready) && !active);   // wild monsters stay sprites until they get rigs too
   $('mon').classList.toggle('rigged', on);
   if (on && rig.mood) rig.mood.value = RIG_MOODS.indexOf(mood);
 }
-function rigStrum() { if (rig.live && !active && rig.strum) rig.strum.fire(); }
+function rigStrum() {
+  if (active) return;
+  if (rig.live && rig.strum) rig.strum.fire();
+  else if (puppet.ready) { puppet.strumAt = performance.now() / 1000; sparkle(); }
+}
 async function loadRig() {
   try {
     if (!(await fetch('rive/main.riv', { method: 'HEAD', cache: 'no-cache' })).ok) return;
@@ -354,13 +365,140 @@ async function loadRig() {
         rig.mood = inputs.find(i => i.name === 'mood');
         rig.strum = inputs.find(i => i.name === 'strum');
         rig.live = r;
+        puppet.ready = false; puppet.el?.remove();      // the real rig replaces the code puppet
         rigMood();
       },
     });
     addEventListener('resize', () => r.resizeDrawingSurfaceToCanvas());
   } catch (e) { rig.live = null; }      // offline or no rig: keep the sprites
 }
+
+// ---- code puppet: until the Rive rig exists, the main monster's rig layers (puppet/main, exported by
+// tools/monster-factory/puppet_export.py) are moved in code. Same moods as the rig, plus the strum bounce. ----
+const puppet = { ready: false, el: null, g: {}, swap: {}, shadow: null, since: 0, strumAt: -9, blinkAt: 2, last: 0, lagY: 0, lagV: 0 };
+async function loadPuppet() {
+  try {
+    const spec = await (await fetch('puppet/main/puppet.json')).json();
+    const [W, H] = spec.canvas, P = spec.pivots, pct = (v, of) => `${(v / of * 100).toFixed(3)}%`;
+    const el = document.createElement('div');
+    el.className = 'rig puppet';
+    const imgs = [];
+    const group = (name, parent, pivot) => {
+      const g = document.createElement('div');
+      g.style.transformOrigin = `${pct(pivot[0], W)} ${pct(pivot[1], H)}`;
+      parent.appendChild(g); return (puppet.g[name] = g);
+    };
+    const layer = (name, parent) => {
+      const [x, y, w] = spec.layers[name], im = new Image();
+      // onload rather than decode(): decode() waits forever while the page is hidden
+      imgs.push(new Promise((ok, fail) => { im.onload = ok; im.onerror = fail; }));
+      im.src = `puppet/main/${name}.webp`; im.alt = '';
+      Object.assign(im.style, { left: pct(x, W), top: pct(y, H), width: pct(w, W) });
+      parent.appendChild(im); return im;
+    };
+    // back to front: tail, body, back paw + ukulele + strumming arm, head with its face swaps
+    const root = group('root', el, P.root);
+    layer('tail', group('tail', root, P.tail));
+    layer('body', root);
+    const uke = group('uke', root, P.uke);
+    layer('arm_back', uke); layer('uke', uke); layer('arm_front', group('arm', uke, P.arm_front));
+    const head = group('head', root, P.head);
+    layer('head', head);
+    for (const k of ['eyes_closed', 'mouth_o', 'mouth_closed']) { puppet.swap[k] = layer(k, head); puppet.swap[k].style.opacity = 0; }
+    await Promise.all(imgs);
+    $('mon').appendChild(el);
+    if (rig.live) { el.remove(); return; }
+    Object.assign(puppet, { el, ready: true, shadow: document.querySelector('#monWrap .shadow') });
+    rigMood();
+    requestAnimationFrame(puppetTick);
+  } catch (e) { puppet.ready = false; }  // no layers: keep the sprites
+}
+
+const wave = (t, period, phase = 0) => Math.sin(2 * Math.PI * (t / period + phase));
+const easeIn = u => { const k = Math.min(1, Math.max(0, u)); return k * k * (3 - 2 * k); };
+// one hop over c seconds: anticipation squash, stretch on the way up, squash on landing
+function hop(c, height) {
+  if (c < 0.1) { const k = c / 0.1; return { y: 0, sy: 1 - 0.1 * k, sx: 1 + 0.07 * k }; }
+  if (c < 0.45) { const k = (c - 0.1) / 0.35, s = 0.06 * Math.cos(Math.PI * k); return { y: -height * Math.sin(Math.PI * k), sy: 1 + s, sx: 1 - 0.7 * s }; }
+  if (c < 0.62) { const s = Math.sin(Math.PI * (c - 0.45) / 0.17); return { y: 0, sy: 1 - 0.09 * s, sx: 1 + 0.06 * s }; }
+  return { y: 0, sy: 1, sx: 1 };
+}
+const breathing = t => { const b = wave(t, 2.4); return { sy: 1 + 0.012 * b, sx: 1 - 0.008 * b, head: 2 * wave(t, 4.8, 0.1), tail: 5 * wave(t, 3.1), uke: 0.8 * wave(t, 2.4, 0.2) }; };
+// u: seconds since the mood started, t: clock. y is a fraction of the height (up is negative), angles in degrees.
+const POSES = {
+  idle: (u, t) => breathing(t),
+  // the arm layer is only a forearm, so the goodbye is a friendly sway with a quick paw flutter
+  goodbye: (u, t) => ({ ...breathing(t), rot: 4 * wave(u, 1.4), arm: -12 * easeIn(u / 0.3) + 12 * wave(u, 0.35), head: 6 * wave(u, 1.4, 0.15), tail: 9 * wave(u, 1.4) }),
+  tune: (u, t) => ({ ...breathing(t), head: -9 * easeIn(u / 0.5) + wave(t, 3), mouth: 'closed' }),
+  play: u => {
+    const p = (u / BEAT) % 1, up = Math.abs(Math.sin(Math.PI * p));
+    return { y: -0.012 * up, sy: 0.98 + 0.04 * up, sx: 1.02 - 0.03 * up, rot: 2.5 * wave(u, 2 * BEAT),
+      head: 4 * wave(u, BEAT, 0.25), arm: -11 * Math.cos(2 * Math.PI * p), uke: 2 * wave(u, 2 * BEAT, 0.1),
+      tail: 8 * wave(u, 2 * BEAT), mouth: Math.floor(u / BEAT) % 2 ? 'o' : null };
+  },
+  listen: (u, t) => {
+    const e = easeIn(u / 0.4);
+    return { rot: 3 * e, head: 8 * e + 1.5 * wave(t, 1.8), sy: 1 + 0.01 * wave(t, 1.8), tail: 3 * wave(t, 2.6), mouth: 'closed' };
+  },
+  cheer: (u, t) => u > 1.3 ? { ...breathing(t), eyes: u < 2 } :
+    { ...hop(u % 0.65, 0.16), arm: -25, head: -3 * wave(u, 0.65), tail: 12 * wave(u, 0.65), eyes: true, mouth: 'o' },
+  party: (u, t) => u > 3.6 ? breathing(t) :
+    { ...hop(u % 0.6, 0.12), rot: 10 * Math.sin(2 * Math.PI * u / 1.2), arm: -20 + 10 * wave(u, 0.6), tail: 14 * wave(u, 0.6), eyes: true, mouth: 'o' },
+  tryagain: (u, t) => {
+    const d = Math.max(0, 1 - u / 1.6);   // a warm nod and a "you can do it" wiggle, then calm
+    return { ...breathing(t), rot: 3 * wave(u, 0.5) * d, headY: 0.01 * Math.abs(Math.sin(2 * Math.PI * u / 0.8)) * d, head: 3 * wave(u, 0.8) * d, mouth: u < 1.6 ? 'closed' : null };
+  },
+};
+
+function puppetTick(ms) {
+  requestAnimationFrame(puppetTick);
+  if (!puppet.ready) return;
+  if (!$('mon').classList.contains('rigged')) { puppet.shadow.style.transform = puppet.shadow.style.opacity = ''; return; }
+  const t = ms / 1000, u = t - puppet.since, dt = Math.min(0.05, Math.max(0, t - puppet.last));
+  puppet.last = t;
+  const p = { y: 0, sx: 1, sy: 1, rot: 0, head: 0, headY: 0, tail: 0, arm: 0, uke: 0, eyes: false, mouth: null, ...(POSES[mood] || POSES.idle)(u, t) };
+  // the strum answer: a quick happy squash and stretch with squeezed eyes, over any mood
+  const s = t - puppet.strumAt;
+  if (s < 0.4) {
+    const k = s / 0.4, amt = Math.sin(2 * Math.PI * k) * (1 - k);
+    p.sy *= 1 - 0.07 * amt; p.sx *= 1 + 0.05 * amt; p.y -= 0.015 * Math.max(0, -amt);
+    if (s < 0.28) p.eyes = true;
+    if (s < 0.3) p.mouth = 'o';
+  }
+  // the head and tail lag behind the body's moves and settle (a damped spring)
+  puppet.lagV += (180 * (p.y - puppet.lagY) - 14 * puppet.lagV) * dt;
+  puppet.lagY += puppet.lagV * dt;
+  const lag = puppet.lagY - p.y;
+  // blink every 2.5-5 s
+  if (t > puppet.blinkAt + 0.14) puppet.blinkAt = t + 2.5 + Math.random() * 2.5;
+  else if (t > puppet.blinkAt) p.eyes = true;
+
+  const g = puppet.g;
+  g.root.style.transform = `translateY(${p.y * 100}%) rotate(${p.rot}deg) scale(${p.sx},${p.sy})`;
+  g.head.style.transform = `translateY(${(p.headY + lag * 0.5) * 100}%) rotate(${p.head}deg)`;
+  g.tail.style.transform = `rotate(${p.tail - lag * 150}deg)`;
+  g.uke.style.transform = `rotate(${p.uke}deg)`;
+  g.arm.style.transform = `rotate(${p.arm}deg)`;
+  puppet.swap.eyes_closed.style.opacity = p.eyes ? 1 : 0;
+  puppet.swap.mouth_o.style.opacity = p.mouth === 'o' ? 1 : 0;
+  puppet.swap.mouth_closed.style.opacity = p.mouth === 'closed' ? 1 : 0;
+  const lift = Math.max(0, -p.y);
+  puppet.shadow.style.transform = `scale(${1 - lift * 2.5})`;
+  puppet.shadow.style.opacity = 1 - lift * 3;
+}
+
+function sparkle() {
+  for (let i = 0; i < 3; i++) {
+    const sp = document.createElement('span'), a = -Math.PI / 2 + (i - 1) * 0.9 + (Math.random() - 0.5) * 0.4;
+    sp.className = 'spark'; sp.textContent = '✨';
+    sp.style.left = `${50 + Math.cos(a) * 30}%`; sp.style.top = `${28 + Math.sin(a) * 14}%`;
+    sp.style.setProperty('--dx', `${Math.cos(a) * 7}dvh`); sp.style.setProperty('--dy', `${Math.sin(a) * 7}dvh`);
+    sp.onanimationend = () => sp.remove();
+    $('monWrap').appendChild(sp);
+  }
+}
 loadRig();
+loadPuppet();
 
 // ---- wild monsters made by tools/monster-factory: monsters/roster.json + monsters/<id>/<pose>.webp ----
 let roster = [], active = null;
