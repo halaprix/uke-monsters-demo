@@ -444,9 +444,9 @@ function joinRiffs(name, parts) {        // one long call: each part starts a be
 }
 // Iron Man's main riff, from the tab the user shared: three parts, then the whole thing
 const IRON_PARTS = [
-  riff('Iron Man 1', [['C', 7], ['E', 5], ['E', 5], ['E', 7], ['E', 7]], [0, 2, 3, 4, 4.5]),
+  riff('Iron Man 1', [['C', 7], ['E', 5], ['E', 5], ['E', 7], ['E', 7]], [0, 2, 4, 5, 6]),   // slow slow fast fast fast
   riff('Iron Man 2', [['A', 5], ['A', 4], ['A', 5], ['A', 4], ['A', 5], ['A', 4]], [0, 0.5, 1, 1.5, 2, 2.5]),
-  riff('Iron Man 3', [['E', 5], ['E', 5], ['E', 7], ['E', 7]], [0, 1, 2, 2.5]),
+  riff('Iron Man 3', [['E', 5], ['E', 5], ['E', 7], ['E', 7]], [0, 1, 2, 3]),
 ];
 const IRON_MAN = [...IRON_PARTS, joinRiffs('Iron Man: whole riff', IRON_PARTS)];
 const BEAT = 0.62;
